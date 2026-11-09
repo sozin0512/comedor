@@ -101,7 +101,7 @@ function ensureHomeUi() {
     if (!clientView) return;
 
     let hub = document.getElementById('passenger-home-hub');
-    if (!hub || hub.getAttribute('data-layout') !== 'hgrid-v1') {
+    if (!hub || hub.getAttribute('data-layout') !== 'hr-v2') {
         const isNew = !hub;
         if (!hub) {
             hub = document.createElement('section');
@@ -109,71 +109,84 @@ function ensureHomeUi() {
             hub.className = 'passenger-home-hub';
             hub.setAttribute('aria-label', 'Menú principal del pasajero');
         }
-        hub.setAttribute('data-layout', 'hgrid-v1');
+        hub.setAttribute('data-layout', 'hr-v2');
+        hub.classList.add('hrh');
+        let tab = 'raites';
+        try { tab = localStorage.getItem('hr_home_tab') === 'envios' ? 'envios' : 'raites'; } catch (_) {}
+        hub.setAttribute('data-hrh-active', tab);
+        // Estilo HonduRaite (v.79): una tarjeta por servicio con data-home-mode (la usa syncHomeCardsForCity);
+        // «Pedí tu raite» y los círculos Moto/VIP/Taxi usan data-hrh-* para no confundirla.
+        const card = (mode, cls, icon, title, sub, extra = '') => `
+                <button type="button" class="passenger-home-card passenger-home-card--${cls} hrh-tile" data-home-mode="${mode}" role="listitem" ${extra}>
+                    <span class="passenger-home-card-icon hrh-ico">${icon}</span>
+                    <span class="passenger-home-card-text"><strong>${title}</strong><small>${sub}</small></span>
+                </button>`;
         hub.innerHTML = `
-            <div class="passenger-home-hero">
-                <p class="passenger-home-kicker">HonduRaite</p>
-                <h2 class="passenger-home-title">¿Qué buscas hoy?</h2>
+            <div class="hrh-hero">
+                <svg class="hrh-road" viewBox="0 0 230 170" aria-hidden="true"><path d="M10 170 C70 120 120 110 150 70 C175 38 200 25 230 20" stroke="#5aa2ff" stroke-width="34" fill="none" opacity=".35"/><path d="M10 170 C70 120 120 110 150 70 C175 38 200 25 230 20" stroke="#cfe3ff" stroke-width="3" stroke-dasharray="10 10" fill="none"/></svg>
+                <svg class="hrh-stars" viewBox="0 0 72 40" aria-hidden="true"><g fill="#7fb3ff"><path d="M12 4l2 5 5 .4-4 3.3 1.3 5-4.3-2.8-4.3 2.8L9 12.7 5 9.4l5-.4z"/><path d="M36 14l2 5 5 .4-4 3.3 1.3 5-4.3-2.8-4.3 2.8 1.3-5-4-3.3 5-.4z"/><path d="M60 4l2 5 5 .4-4 3.3 1.3 5-4.3-2.8-4.3 2.8 1.3-5-4-3.3 5-.4z"/><path d="M24 24l2 5 5 .4-4 3.3 1.3 5-4.3-2.8-4.3 2.8 1.3-5-4-3.3 5-.4z"/><path d="M48 24l2 5 5 .4-4 3.3 1.3 5-4.3-2.8-4.3 2.8 1.3-5-4-3.3 5-.4z"/></g></svg>
+                <p class="passenger-home-kicker hrh-kicker">HonduRaite · Viaja seguro, llega lejos</p>
+                <h2 class="passenger-home-title hrh-title">¿Para dónde vamos?</h2>
+                <button type="button" class="hrh-search" data-hrh-go="trip"><span class="hrh-dot"></span><span>Pedí tu raite</span><i class="fas fa-arrow-right"></i></button>
             </div>
-            <div class="passenger-home-grid" role="list">
-                <button type="button" class="passenger-home-card passenger-home-card--trip" data-home-mode="trip" role="listitem" title="Moto, Taxi VIP o taxi tradicional">
-                    <span class="passenger-home-card-icon"><i class="fas fa-car-side"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Viaje</strong>
-                        <small>Moto · VIP · Taxi</small>
-                    </span>
-                </button>
-                <button type="button" class="passenger-home-card passenger-home-card--stores" data-home-mode="stores" role="listitem" title="Comprar a emprendedores">
-                    <span class="passenger-home-card-icon"><i class="fas fa-store"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Tiendas</strong>
-                        <small>Pedidos</small>
-                    </span>
-                </button>
-                <button type="button" class="passenger-home-card passenger-home-card--market" data-home-mode="marketplace" role="listitem" title="Carros, motos y repuestos en venta o renta">
-                    <span class="passenger-home-card-icon"><i class="fas fa-tags"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Marketplace</strong>
-                        <small>Carros · Motos · Renta</small>
-                    </span>
-                </button>
-                <button type="button" class="passenger-home-card passenger-home-card--delivery" data-home-mode="delivery" role="listitem" title="Recoger y entregar">
-                    <span class="passenger-home-card-icon"><i class="fas fa-box"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Envío</strong>
-                        <small>Mensajería</small>
-                    </span>
-                </button>
-                <button type="button" class="passenger-home-card passenger-home-card--freight" data-home-mode="freight" role="listitem" title="Paila o camión">
-                    <span class="passenger-home-card-icon"><i class="fas fa-truck"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Flete</strong>
-                        <small>Paila · Camión</small>
-                    </span>
-                </button>
-                <button type="button" class="passenger-home-card passenger-home-card--tow" data-home-mode="tow" role="listitem" title="Remolque y auxilio">
-                    <span class="passenger-home-card-icon"><i class="icon-grua" aria-hidden="true"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Grúa</strong>
-                        <small>Remolque</small>
-                    </span>
+            <div class="hrh-flag" aria-hidden="true"></div>
+            <div class="hrh-seg" role="tablist">
+                <button type="button" role="tab" data-hrh-tab="raites"><i class="fas fa-car-side"></i> Raites</button>
+                <button type="button" role="tab" data-hrh-tab="envios"><i class="fas fa-shopping-bag"></i> Envíos y tiendas</button>
+            </div>
+            <div class="hrh-pane" data-hrh-pane="raites">
+                <p class="hrh-h">¿Cómo querés ir? <span class="hrh-st">★★★★★</span></p>
+                <div class="hrh-circles">
+                    <button type="button" data-hrh-svc="moto"><i class="fas fa-motorcycle"></i><span>Moto</span></button>
+                    <button type="button" data-hrh-svc="auto"><i class="fas fa-car"></i><span>Taxi VIP</span></button>
+                    <button type="button" data-hrh-svc="taxi"><i class="fas fa-taxi"></i><span>Taxi</span></button>
+                </div>
+                <div class="passenger-home-grid hrh-grid" role="list">
+                    ${card('trip', 'trip', '<i class="fas fa-car-side"></i>', 'Viaje', 'Moto · VIP · Taxi', 'title="Moto, Taxi VIP o taxi tradicional"')}
+                    ${card('tow', 'tow', '<i class="icon-grua" aria-hidden="true"></i>', 'Grúa', 'Remolque', 'title="Remolque y auxilio"')}
+                </div>
+            </div>
+            <div class="hrh-pane" data-hrh-pane="envios">
+                <div class="passenger-home-grid hrh-grid" role="list">
+                    ${card('stores', 'stores', '<i class="fas fa-store"></i>', 'Tiendas', 'Comida y productos', 'title="Comprar a emprendedores"')}
+                    ${card('delivery', 'delivery', '<i class="fas fa-box"></i>', 'Envío', 'Mensajería en moto', 'title="Recoger y entregar"')}
+                    ${card('freight', 'freight', '<i class="fas fa-truck"></i>', 'Flete', 'Paila · Camión', 'title="Paila o camión"')}
+                    ${card('marketplace', 'market', '<i class="fas fa-tags"></i>', 'Marketplace', 'Carros · Motos · Renta', 'title="Carros, motos y repuestos en venta o renta"')}
+                </div>
+            </div>
+            <div id="want-to-be-driver-card" class="hrh-driver-wrap">
+                <button type="button" id="btn-want-to-be-driver" data-home-action="want-to-be-driver" class="hrh-driver">
+                    <span class="hrh-driver-ico"><i class="fas fa-id-card"></i></span>
+                    <span class="hrh-driver-txt"><strong>Quiero ser conductor</strong><small>Registrá tu auto, moto, taxi, paila o grúa</small></span>
+                    <i class="fas fa-chevron-right"></i>
                 </button>
             </div>
-            <div id="want-to-be-driver-card" style="margin-top:0.5rem;">
-                <button type="button" id="btn-want-to-be-driver" data-home-action="want-to-be-driver"
-                    style="width:100%;display:flex;align-items:center;gap:0.65rem;padding:0.55rem 0.75rem;border-radius:0.95rem;border:1px solid #e2e8f0;background:#ffffff;box-shadow:0 4px 14px rgba(15,23,42,0.05);text-align:left;transition:transform 0.12s ease;">
-                    <span style="width:2.2rem;height:2.2rem;border-radius:0.7rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:0.9rem;background:linear-gradient(135deg,#2563eb,#1d4ed8);">
-                        <i class="fas fa-id-card"></i>
-                    </span>
-                    <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:0.05rem;">
-                        <strong style="font-size:0.78rem;font-weight:900;color:#0f172a;line-height:1.15;">Quiero ser conductor</strong>
-                        <small style="font-size:0.64rem;font-weight:600;color:#64748b;line-height:1.2;">Registra tu auto, moto, taxi, paila o grúa en HonduRaite</small>
-                    </span>
-                    <i class="fas fa-chevron-right" style="color:#94a3b8;font-size:0.72rem;flex-shrink:0;"></i>
-                </button>
-            </div>
-            <p class="passenger-home-foot">Toca una opción · vuelve con <b>Inicio</b></p>
         `;
+        if (!hub.dataset.hrhBound) {
+            hub.dataset.hrhBound = '1';
+            hub.addEventListener('click', (e) => {
+                const tabBtn = e.target.closest('[data-hrh-tab]');
+                if (tabBtn) {
+                    const t = tabBtn.getAttribute('data-hrh-tab');
+                    hub.setAttribute('data-hrh-active', t);
+                    try { localStorage.setItem('hr_home_tab', t); } catch (_) {}
+                    return;
+                }
+                const go = e.target.closest('[data-hrh-go]');
+                if (go) { e.preventDefault(); setPassengerHomeMode(go.getAttribute('data-hrh-go')); return; }
+                const svcBtn = e.target.closest('[data-hrh-svc]');
+                if (svcBtn) {
+                    e.preventDefault();
+                    if (svcBtn.classList.contains('hrh-off')) {
+                        const label = svcBtn.textContent.trim();
+                        try { showServiceUnavailableSheet(label, `${label} no está disponible en tu ciudad por ahora. Probá con otro servicio.`); } catch (_) {}
+                        return;
+                    }
+                    window._hrHomePreferredService = svcBtn.getAttribute('data-hrh-svc');
+                    setPassengerHomeMode('trip');
+                }
+            });
+        }
         if (isNew) {
             clientView.insertBefore(hub, clientView.firstChild);
         }
@@ -376,6 +389,12 @@ function syncHomeCardsForCity() {
     const hub = document.getElementById('passenger-home-hub');
     if (!hub) return;
     const zoneId = getActiveCityId();
+    // Círculos Moto / Taxi VIP / Taxi del inicio: en gris si no hay ese servicio en la ciudad
+    hub.querySelectorAll('[data-hrh-svc]').forEach((b) => {
+        const off = isServiceTypeDisabledInCity(b.getAttribute('data-hrh-svc'), zoneId);
+        b.classList.toggle('hrh-off', off);
+        b.setAttribute('aria-disabled', off ? 'true' : 'false');
+    });
     Object.keys(HOME_CARD_TYPES).forEach((mode) => {
         const card = hub.querySelector(`[data-home-mode="${mode}"]`);
         if (!card) return;
@@ -533,7 +552,10 @@ function applyMode(mode) {
             wrap.classList.toggle('hidden', allowed.length <= 1);
         }
         const selectable = allowed.filter((t) => !(t === 'moto' && isMalePassengerMotoRideBlocked(getUserProfile?.())));
-        let pick = meta.defaultService;
+        // Círculo del inicio (Moto / Taxi VIP / Taxi): usar ese servicio en vez del predeterminado
+        const preferred = window._hrHomePreferredService;
+        window._hrHomePreferredService = null;
+        let pick = (preferred && allowed.includes(preferred)) ? preferred : meta.defaultService;
         if (pick === 'moto' && isMalePassengerMotoRideBlocked(getUserProfile?.())) {
             pick = firstAllowedPassengerTripType(selectable);
         }

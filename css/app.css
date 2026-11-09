@@ -27416,3 +27416,48 @@ html[data-theme="dark"] .extra-stop-sheet-close { background: #1e293b; border-co
 #client-trip-float.hr-raite .hr-raite-slogan { text-align: center; font-size: 0.62rem; letter-spacing: .2em; font-weight: 900; color: #8fa6cc; margin: 0.55rem 0 0.1rem; }
 /* La columna del cuerpo encogía el encabezado (overflow:hidden) a ~28px: ninguna pieza se encoge, se desplaza */
 #client-trip-float.hr-raite .client-trip-float-body > * { flex-shrink: 0 !important; }
+
+/* ===== v.79 · Inicio del pasajero estilo HonduRaite ===== */
+#passenger-home-hub.hrh { --hn: #0a1f44; --hn2: #123a7a; --hb: #1e6bd6; --hg: #3b8bff; --hc: #38bdf8; --hi: #0b1730; --hm: #5b6b85; padding: 0 0 0.4rem !important; }
+#passenger-home-hub.hrh, #passenger-home-hub.hrh * { font-variant-emoji: text; }
+#passenger-home-hub.hrh .hrh-hero { position: relative; overflow: hidden; border-radius: 18px 18px 0 0; padding: 0.85rem 0.95rem 0.95rem !important; margin: 0 !important;
+  background: radial-gradient(120% 90% at 85% 0%, #2a5fb8 0%, var(--hn2) 35%, var(--hn) 75%) !important; color: #fff; }
+#passenger-home-hub.hrh .hrh-road { position: absolute; right: -36px; bottom: -44px; width: 200px; height: 150px; opacity: .5; pointer-events: none; }
+#passenger-home-hub.hrh .hrh-stars { position: absolute; right: 14px; top: 10px; width: 58px; height: 32px; pointer-events: none; }
+#passenger-home-hub.hrh .hrh-kicker { position: relative; color: #bcd4ff !important; font-size: 0.62rem !important; font-weight: 900 !important; letter-spacing: .14em; text-transform: uppercase; margin: 0 !important; }
+#passenger-home-hub.hrh .hrh-title { position: relative; color: #fff !important; font-size: 1.3rem !important; font-weight: 900 !important; font-style: italic; letter-spacing: -0.02em; margin: 0.15rem 0 0.6rem !important; }
+#passenger-home-hub.hrh .hrh-search { position: relative; width: 100%; height: 3rem; border-radius: 15px; background: #fff; color: var(--hi); display: flex; align-items: center; gap: 0.6rem; padding: 0 0.9rem; font-weight: 900; font-size: 1rem; box-shadow: 0 10px 24px rgba(0,0,0,.25); border: 0; }
+#passenger-home-hub.hrh .hrh-search .hrh-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--hb); box-shadow: 0 0 0 4px rgba(30,107,214,.2); flex: 0 0 auto; }
+#passenger-home-hub.hrh .hrh-search i { margin-left: auto; color: var(--hb); }
+#passenger-home-hub.hrh .hrh-flag { height: 4px; background: linear-gradient(90deg, var(--hb) 0 33%, #fff 33% 66%, var(--hb) 66%); border-bottom: 1px solid #dbe4f0; }
+#passenger-home-hub.hrh .hrh-seg { display: flex; margin: 0.6rem 0 0.55rem; background: #dde7f5; border-radius: 14px; padding: 3px; }
+#passenger-home-hub.hrh .hrh-seg button { flex: 1; padding: 0.55rem 0; border-radius: 11px; font-weight: 900; font-size: 0.8rem; color: var(--hm); background: transparent; border: 0; }
+#passenger-home-hub.hrh[data-hrh-active="raites"] [data-hrh-tab="raites"],
+#passenger-home-hub.hrh[data-hrh-active="envios"] [data-hrh-tab="envios"] { background: #fff; color: var(--hn); box-shadow: 0 4px 12px rgba(10,31,68,.12); }
+#passenger-home-hub.hrh .hrh-pane { display: none; }
+#passenger-home-hub.hrh[data-hrh-active="raites"] [data-hrh-pane="raites"],
+#passenger-home-hub.hrh[data-hrh-active="envios"] [data-hrh-pane="envios"] { display: block; }
+#passenger-home-hub.hrh .hrh-h { font-size: 0.85rem; font-weight: 900; color: var(--hn); margin: 0.1rem 0.15rem 0.45rem; }
+#passenger-home-hub.hrh .hrh-st { color: #7fb3ff; font-size: 0.62rem; letter-spacing: 2px; }
+#passenger-home-hub.hrh .hrh-circles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.55rem; }
+#passenger-home-hub.hrh .hrh-circles button { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: none; border: 0; font-weight: 800; font-size: 0.74rem; color: var(--hn); }
+#passenger-home-hub.hrh .hrh-circles i { width: 3.4rem; height: 3.4rem; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #fff;
+  background: radial-gradient(circle at 30% 25%, #4f9bff, var(--hb) 55%, var(--hn2)); box-shadow: 0 8px 18px rgba(30,107,214,.35); border: 2px solid rgba(255,255,255,.6); }
+#passenger-home-hub.hrh .hrh-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 0.5rem !important; }
+#passenger-home-hub.hrh .hrh-tile { grid-column: auto !important; flex-direction: row !important; justify-content: flex-start !important; text-align: left !important; gap: 0.6rem !important;
+  min-height: 3.9rem; padding: 0.6rem !important; border-radius: 16px !important; background: #fff !important; border: 1px solid #dbe4f0 !important; box-shadow: 0 6px 16px rgba(30,107,214,.1) !important; }
+#passenger-home-hub.hrh .hrh-ico { width: 2.5rem !important; height: 2.5rem !important; border-radius: 13px !important; flex: 0 0 auto; color: #fff !important; font-size: 1rem !important;
+  background: radial-gradient(circle at 30% 25%, #4f9bff, var(--hb) 55%, var(--hn2)) !important; box-shadow: 0 6px 14px rgba(30,107,214,.3); }
+#passenger-home-hub.hrh .hrh-tile .passenger-home-card-text { align-items: flex-start !important; }
+#passenger-home-hub.hrh .hrh-tile strong { font-size: 0.85rem !important; color: var(--hi) !important; }
+#passenger-home-hub.hrh .hrh-tile small { font-size: 0.66rem !important; color: var(--hm) !important; display: block; }
+#passenger-home-hub.hrh .hrh-driver-wrap { margin-top: 0.55rem; }
+#passenger-home-hub.hrh .hrh-driver { width: 100%; display: flex; align-items: center; gap: 0.65rem; padding: 0.65rem 0.8rem; border-radius: 16px; border: 0; text-align: left; color: #fff;
+  background: radial-gradient(120% 140% at 90% 0%, #2a5fb8, var(--hn2) 45%, var(--hn)); box-shadow: 0 8px 20px rgba(10,31,68,.28); }
+#passenger-home-hub.hrh .hrh-driver-ico { width: 2.2rem; height: 2.2rem; border-radius: 0.7rem; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.15); flex: 0 0 auto; }
+#passenger-home-hub.hrh .hrh-driver-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#passenger-home-hub.hrh .hrh-driver-txt strong { font-size: 0.82rem; font-weight: 900; }
+#passenger-home-hub.hrh .hrh-driver-txt small { font-size: 0.66rem; color: #bcd4ff; font-weight: 700; }
+#passenger-home-hub.hrh .passenger-home-card--off { opacity: .55; }
+#passenger-home-hub.hrh .hrh-circles .hrh-off { opacity: .45; }
+#passenger-home-hub.hrh .hrh-circles .hrh-off i { background: #94a3b8 !important; box-shadow: none !important; }
