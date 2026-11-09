@@ -554,7 +554,11 @@ export function syncDriverSheetSafeArea() {
         safe = parseFloat(getComputedStyle(body).getPropertyValue("--safe-bottom")) || 0;
     } catch (_) {}
     const sys = (window.screen?.height || 0) - (window.innerHeight || 0);
-    const three = safe < 24 && sys >= 36 && sys <= 180;
+    // v.95 · Si la ventana es más baja que la pantalla (sys ≥ 36), la barra de botones de Android queda
+    // FUERA de la app (barra negra aparte): no hace falta reservar nada → antes quedaba una franja blanca.
+    // Solo si la app se dibuja DEBAJO de esa barra (ventana ≈ pantalla) y el sistema no informa el
+    // margen, se reservan 48 px para que los botones del panel no queden tapados.
+    const three = safe < 24 && sys >= 0 && sys < 30;
     body.classList.toggle("android-3btn", three);
     body.classList.toggle("android-gesture", !three);
     // v.94 · La barra de 3 botones de Android mide 48 dp. Antes se usaba (pantalla − ventana), que también
