@@ -27461,3 +27461,13 @@ html[data-theme="dark"] .extra-stop-sheet-close { background: #1e293b; border-co
 #passenger-home-hub.hrh .passenger-home-card--off { opacity: .55; }
 #passenger-home-hub.hrh .hrh-circles .hrh-off { opacity: .45; }
 #passenger-home-hub.hrh .hrh-circles .hrh-off i { background: #94a3b8 !important; box-shadow: none !important; }
+
+/* v.80 · Inicio del pasajero: el panel se abre casi completo (hasta lo que necesite el contenido,
+   máx. 88% de la pantalla) para ver los servicios sin deslizar. Minimizar sigue igual. */
+body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    max-height: min(88dvh, 56rem) !important;
+    height: auto !important;
+}
+body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
+    max-height: none !important;
+}
