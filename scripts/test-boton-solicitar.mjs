@@ -18,6 +18,7 @@ import {
     ANDROID_GESTURE_NAV_PX,
     routePointIsCommitted,
     shouldQuoteRouteNow,
+    scrollDeltaToReveal,
 } from '../js/booking-primary-action.mjs';
 
 const gps = { source: 'gps', latLng: { lat: 14.08, lng: -87.2 }, address: 'Tegucigalpa' };
@@ -39,6 +40,7 @@ const maps = read('js/maps-init.js');
 const home = read('js/passenger-home.js');
 const html = read('index.html');
 const css = read('css/app.css');
+const trip = read('js/trip-experience.js');
 
 const faresOnService = {
     routeReady: true,
@@ -155,12 +157,51 @@ const pedir = bookingPrimaryAction({
 });
 assert.equal(pedir.label, 'PEDIR EL VIAJE');
 
+const programado = bookingPrimaryAction({
+    ...faresOnService,
+    serviceTypeChosen: true,
+    passengersChosen: true,
+    whenConfirmed: true,
+    nowIsDefault: false,
+    requestLabel: 'PROGRAMAR VIAJE',
+});
+assert.equal(programado.visible, true, 'con la hora confirmada el botón de pedir sigue');
+assert.equal(programado.mode, 'request');
+assert.equal(programado.label, 'PROGRAMAR VIAJE');
+assert.equal(programado.disabled, false);
+
+const confirmLater = trip.slice(trip.indexOf('export function confirmScheduleDraft'), trip.indexOf('export function cancelScheduleDraft'));
+assert.match(confirmLater, /window\.whenStepConfirmed = true/);
+assert.match(confirmLater, /confirmWhenStep\?\.\('later'\)/);
+assert.match(confirmLater, /setWhenAdderOpen\(false\)/);
+
 assert.equal(bookingNavClearancePx({ mode: '3btn', safeBottomPx: 0, navInsetPx: 48 }) >= ANDROID_3BTN_NAV_PX, true);
 assert.equal(bookingNavClearancePx({ mode: '3btn', safeBottomPx: 0 }), 48 + 8);
 assert.equal(bookingNavClearancePx({ mode: '3btn', safeBottomPx: 64 }), 64 + 8, 'no achicar un inset real más alto');
 assert.equal(bookingNavClearancePx({ mode: 'gesture', safeBottomPx: 0 }) >= ANDROID_GESTURE_NAV_PX, true);
 assert.equal(bookingNavClearancePx({ mode: 'gesture', safeBottomPx: 0 }), 20 + 8);
 assert.equal(bookingNavClearancePx({ mode: 'gesture', safeBottomPx: 34 }), 34 + 8);
+
+assert.equal(scrollDeltaToReveal(100, 400, 120, 200), 0, 'Ahora y Programar ya visibles no se mueven');
+assert.equal(scrollDeltaToReveal(100, 400, 380, 460), 68, 'controles debajo del hueco suben a la vista');
+assert.equal(scrollDeltaToReveal(100, 400, 40, 90), -68, 'controles arriba del hueco bajan a la vista');
+assert.equal(scrollDeltaToReveal(100, 200, 50, 400), -58, 'si no caben, se ve primero el inicio del bloque');
+assert.equal(scrollDeltaToReveal(NaN, 10, 0, 10), 0);
+
+const bindWhen = trip.slice(trip.indexOf('export function bindWhenAdder'), trip.indexOf('function setActiveWhenMode'));
+assert.doesNotMatch(bindWhen, /goBackBookingStep/, 'abrir programar no apaga el paso ni esconde SOLICITAR AHORA');
+assert.match(bindWhen, /setWhenAdderOpen\(willOpen\)/);
+assert.match(bindWhen, /revealBookingWhenControls/);
+assert.match(trip, /trip-when-panel'\)\?\.classList\.remove\('hidden'\)/);
+assert.match(trip, /window\._whenEditorOpen = !!open/);
+assert.doesNotMatch(bindWhen, /whenStepConfirmed = false/);
+assert.match(app, /window\.revealBookingWhenControls/);
+assert.match(app, /scrollDeltaToReveal\(frame\.top/);
+assert.match(app, /const keepWhenEditor = window\._whenEditorOpen === true/);
+assert.match(app, /if \(showWhen\) document\.getElementById\('trip-when-panel'\)\?\.classList\.remove\('hidden'\)/);
+assert.match(css, /\.passenger-booking-progress > \.booking-progress-step\s*\{[^}]*flex:\s*0 0 auto/);
+assert.match(css, /body\.when-editor-open \.passenger-booking-progress\s*\{[^}]*68dvh/);
+assert.match(css, /overflow-anchor:\s*none/);
 
 const layer = html.slice(html.indexOf('id="booking-float-layer"'), html.indexOf('id="trip-floats-layer"'));
 const progressAt = layer.indexOf('id="passenger-booking-progress"');
@@ -460,6 +501,171 @@ async function capturePhone(htmlPath, { w, h, screenshot }) {
     }
 }
 
+function schedulePreviewHtml({ navMode, editor }) {
+    const navH = navMode === '3btn' ? 48 : 20;
+    const navLabel = navMode === '3btn' ? 'Android · 3 botones' : 'Android · gestos';
+    const later = editor === 'later';
+    const label = later ? 'ELEGÍ LA HORA' : 'SOLICITAR AHORA';
+    const targetSel = later ? '#trip-when-schedule' : '.trip-when-modes';
+    return `<!DOCTYPE html>
+<html lang="es" class="${navMode === '3btn' ? 'android-3btn' : 'android-gesture'}" style="--safe-bottom:0px;--android-nav-inset:48px">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Programar viaje</title>
+<link rel="stylesheet" href="file://${root}/css/tailwind.css">
+<link rel="stylesheet" href="file://${root}/css/app.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #dbe7f3; }
+  body { font-family: Inter, system-ui, sans-serif; }
+  .ex-map { position: fixed; inset: 0; z-index: 0;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0)),
+      repeating-linear-gradient(90deg, transparent 0 46px, rgba(148,163,184,.35) 46px 47px),
+      repeating-linear-gradient(0deg, transparent 0 46px, rgba(148,163,184,.35) 46px 47px),
+      #e8eef5; }
+  #fake-system-nav { position: fixed; left: 0; right: 0; bottom: 0; height: ${navH}px; z-index: 800;
+    background: ${navMode === '3btn' ? '#0f172a' : 'transparent'}; color: #fff;
+    display: flex; align-items: center; justify-content: space-around; font-size: 11px; font-weight: 800; }
+  #fake-system-nav .pill { width: 108px; height: 5px; border-radius: 99px; background: #0f172a; }
+  #probe { display: none; }
+</style>
+</head>
+<body class="client-mode booking-float-active booking-primary-visible when-editor-open ${navMode === '3btn' ? 'android-3btn' : 'android-gesture'}" style="--safe-bottom:0px">
+<div class="ex-map"></div>
+<div id="booking-float-layer" class="booking-float-layer">
+  <div class="booking-back-bar">
+    <button type="button" class="booking-back-btn"><i class="fas fa-home"></i><span>Inicio</span></button>
+    <button type="button" class="booking-edit-route-btn"><span>Origen / destino</span></button>
+  </div>
+  <div id="passenger-booking-progress" class="passenger-booking-progress booking-float-stack">
+    <div class="booking-progress-step booking-float-card booking-progress-step--done">
+      <button type="button" class="add-extra-stop-btn add-service-btn is-chosen">
+        <span class="add-extra-stop-btn-icon"><i class="fas fa-car"></i></span>
+        <span class="add-extra-stop-btn-text">
+          <span class="add-extra-stop-btn-label">Taxi VIP (automóvil)</span>
+          <span class="add-extra-stop-btn-badge">Listo · toca para cambiar</span>
+        </span>
+      </button>
+    </div>
+    <div class="booking-progress-step booking-float-card booking-progress-step--done">
+      <button type="button" class="add-extra-stop-btn add-passengers-btn is-chosen">
+        <span class="add-extra-stop-btn-icon"><i class="fas fa-users"></i></span>
+        <span class="add-extra-stop-btn-text">
+          <span class="add-extra-stop-btn-label">1 persona en el viaje</span>
+          <span class="add-extra-stop-btn-badge">Listo · toca para cambiar</span>
+        </span>
+      </button>
+    </div>
+    <div id="passenger-booking-when" class="booking-progress-step booking-float-card">
+      <button type="button" id="add-when-btn" class="add-extra-stop-btn add-when-btn is-chosen is-active" aria-expanded="true">
+        <span class="add-extra-stop-btn-icon"><i class="fas fa-clock"></i></span>
+        <span class="add-extra-stop-btn-text">
+          <span class="add-extra-stop-btn-label">${later ? 'En otro momento · elige hora' : 'Ahora · lo necesito ya'}</span>
+          <span class="add-extra-stop-btn-badge">${later ? 'Elige un atajo o fecha' : 'Toca para programar'}</span>
+        </span>
+      </button>
+      <div id="trip-when-adder" class="trip-when-adder">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] font-black text-slate-600 uppercase tracking-wide">Elige el momento</span>
+          <button type="button" aria-label="Cerrar">×</button>
+        </div>
+        <div id="trip-when-panel" class="trip-when-panel">
+          <div class="trip-when-head">
+            <p class="trip-when-title"><i class="fas fa-clock"></i> ¿Cuándo lo necesitas?</p>
+            <p class="trip-when-sub">Carro, moto, flete o envío · hora de Honduras</p>
+          </div>
+          <div class="trip-when-modes">
+            <button type="button" id="trip-when-now" class="trip-when-mode-btn ${later ? '' : 'is-active'}">Ahora</button>
+            <button type="button" id="trip-when-later" class="trip-when-mode-btn ${later ? 'is-active' : ''}">Programar</button>
+          </div>
+          <div id="trip-when-schedule" class="trip-when-schedule ${later ? '' : 'hidden'}">
+            <p class="trip-when-presets-label">Elige en un toque</p>
+            <div id="trip-when-presets" class="trip-when-presets">
+              <button type="button" class="trip-when-preset">En 30 min</button>
+              <button type="button" class="trip-when-preset">En 1 hora</button>
+              <button type="button" class="trip-when-preset">En 2 horas</button>
+              <button type="button" class="trip-when-preset is-active">Elegir fecha</button>
+            </div>
+            <div id="trip-when-custom" class="trip-when-custom">
+              <div class="trip-when-custom-grid">
+                <label class="trip-when-field"><span>Fecha</span><input type="date" id="trip-schedule-date" class="trip-when-input" value="2026-11-11"></label>
+                <label class="trip-when-field"><span>Hora</span><input type="time" id="trip-schedule-time" class="trip-when-input" value="18:30"></label>
+              </div>
+              <p class="trip-when-hint">Mínimo 15 min desde ahora · zona America/Tegucigalpa</p>
+              <div id="trip-when-draft" class="mt-2 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-3">
+                <p class="text-xs font-black text-amber-800">Sin confirmar: mié 11 nov · 6:30 p. m.</p>
+                <div class="flex gap-2 mt-2">
+                  <button type="button" id="trip-when-draft-confirm" class="flex-1 rounded-xl bg-emerald-600 text-white text-xs font-black py-2.5">Confirmar fecha y hora</button>
+                  <button type="button" class="rounded-xl border border-slate-300 bg-white text-slate-600 text-xs font-bold px-3 py-2.5">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="passenger-booking-request" class="booking-progress-step booking-float-card">
+      <div id="fare-card" class="trip-fare-card">
+        <p class="fare-price-hero">L. 265.93</p>
+        <p class="fare-card-label">Tarifa estimada</p>
+        <div class="fare-card-details">
+          <p>10.4 km · 19 min · 1 persona · Taxi VIP</p>
+        </div>
+        <button type="button" class="booking-request-back-btn">Corregir datos</button>
+      </div>
+    </div>
+  </div>
+  <div id="booking-primary-dock" class="booking-primary-dock" data-above-system-nav="1">
+    <button type="button" id="booking-continue-btn" class="booking-continue-btn"><span id="booking-continue-label">${label}</span></button>
+  </div>
+</div>
+<div id="fake-system-nav">${navMode === '3btn' ? '<span>◁</span><span>○</span><span>□</span>' : '<span class="pill"></span>'}</div>
+<pre id="probe"></pre>
+<script type="module">
+import { scrollDeltaToReveal } from 'file://${root}/js/booking-primary-action.mjs';
+const progress = document.getElementById('passenger-booking-progress');
+const fare = document.getElementById('fare-card');
+fare.scrollIntoView({ block: 'end' });
+const target = document.querySelector('${targetSel}');
+const frame = progress.getBoundingClientRect();
+const box = target.getBoundingClientRect();
+progress.scrollTop += scrollDeltaToReveal(frame.top, frame.bottom, box.top, box.bottom, 8);
+const fully = (el) => {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  const c = progress.getBoundingClientRect();
+  return r.height >= 28 && r.top >= c.top - 1 && r.bottom <= c.bottom + 1;
+};
+const btn = document.getElementById('booking-continue-btn');
+const nav = document.getElementById('fake-system-nav');
+const br = btn.getBoundingClientRect();
+const nr = nav.getBoundingClientRect();
+const now = document.getElementById('trip-when-now').getBoundingClientRect();
+const laterBtn = document.getElementById('trip-when-later').getBoundingClientRect();
+const fareR = fare.getBoundingClientRect();
+document.getElementById('probe').textContent = JSON.stringify({
+  label: btn.textContent.trim(),
+  innerWidth: window.innerWidth,
+  innerHeight: window.innerHeight,
+  btnBottom: br.bottom, btnH: br.height, btnW: br.width, navTop: nr.top,
+  aboveNav: br.bottom <= nr.top + 0.5,
+  onScreen: br.top >= 0 && br.left >= 0 && br.right <= window.innerWidth + 0.5 && br.height >= 44,
+  modes: fully(document.querySelector('.trip-when-modes')),
+  nowText: document.getElementById('trip-when-now').textContent.trim(),
+  laterText: document.getElementById('trip-when-later').textContent.trim(),
+  modesAboveFare: now.bottom <= fareR.top + 1 && laterBtn.bottom <= fareR.top + 1,
+  presets: fully(document.getElementById('trip-when-presets')),
+  date: fully(document.getElementById('trip-schedule-date')),
+  time: fully(document.getElementById('trip-schedule-time')),
+  confirm: fully(document.getElementById('trip-when-draft-confirm')),
+  panelH: Math.round(document.getElementById('trip-when-panel').getBoundingClientRect().height),
+  nav: '${navLabel}',
+});
+</script>
+</body></html>`;
+}
+
 if (!chromeBin) {
     console.log('SKIP layout: no hay Chrome. Las pruebas de lógica y CSS sí corrieron.');
 } else {
@@ -489,6 +695,44 @@ if (!chromeBin) {
             console.log('screenshot', out, probe);
         } else {
             console.log('narrow', shot.w, probe);
+        }
+    }
+    const scheduleShots = [
+        { file: 'booking-programar-modos-3btn-360.png', navMode: '3btn', editor: 'choices', w: 360, h: 780 },
+        { file: 'booking-programar-modos-gesture-360.png', navMode: 'gesture', editor: 'choices', w: 360, h: 780 },
+        { file: 'booking-programar-fecha-3btn-360.png', navMode: '3btn', editor: 'later', w: 360, h: 780 },
+        { file: 'booking-programar-fecha-gesture-360.png', navMode: 'gesture', editor: 'later', w: 360, h: 780 },
+        { file: null, navMode: '3btn', editor: 'choices', w: 360, h: 640 },
+        { file: null, navMode: '3btn', editor: 'later', w: 360, h: 640 },
+    ];
+    for (const shot of scheduleShots) {
+        const htmlPath = path.join(tmp, `schedule-${shot.navMode}-${shot.editor}-${shot.h}.html`);
+        fs.writeFileSync(htmlPath, schedulePreviewHtml(shot));
+        const { probe, png } = await capturePhone(htmlPath, { w: shot.w, h: shot.h, screenshot: !!shot.file });
+        assert.equal(probe.innerWidth, shot.w, `ancho programar ${probe.innerWidth}`);
+        assert.equal(probe.aboveNav, true, `botón tapado al programar ${shot.navMode} ${shot.editor}: ${JSON.stringify(probe)}`);
+        assert.equal(probe.onScreen, true, `botón fuera al programar ${shot.navMode}: ${JSON.stringify(probe)}`);
+        assert.ok(probe.panelH > 80, `panel de hora sin alto ${probe.panelH}`);
+        if (shot.editor === 'choices') {
+            assert.equal(probe.modes, true, `Ahora | Programar no están a la vista: ${JSON.stringify(probe)}`);
+            assert.equal(probe.nowText, 'Ahora');
+            assert.equal(probe.laterText, 'Programar');
+            assert.equal(probe.modesAboveFare, true, 'la tarifa tapa Ahora / Programar');
+            assert.equal(probe.label, 'SOLICITAR AHORA');
+        } else {
+            assert.equal(probe.presets, true, `atajos de hora fuera de vista: ${JSON.stringify(probe)}`);
+            assert.equal(probe.date, true, `fecha fuera de vista: ${JSON.stringify(probe)}`);
+            assert.equal(probe.time, true, `hora fuera de vista: ${JSON.stringify(probe)}`);
+            assert.equal(probe.confirm, true, `confirmar fecha fuera de vista: ${JSON.stringify(probe)}`);
+            assert.equal(probe.label, 'ELEGÍ LA HORA');
+        }
+        if (shot.file && png) {
+            const out = path.join(art, shot.file);
+            fs.writeFileSync(out, png);
+            assert.ok(png.length > 5000, shot.file);
+            console.log('screenshot', out, probe);
+        } else {
+            console.log('schedule', shot.h, shot.editor, probe);
         }
     }
 }
