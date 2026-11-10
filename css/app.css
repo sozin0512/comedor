@@ -28103,3 +28103,115 @@ body.android-3btn.scheduled-takeover #control-panel {
 body.android-gesture.scheduled-takeover #control-panel {
     padding-bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
 }
+/* Pasajero: Cancelar (búsqueda y reserva) queda sobre la barra de Android, 8px de respiro. */
+body.android-3btn.is-searching #searching-cancel-btn,
+body.android-3btn.is-searching #searching-state .passenger-pending-cancel {
+    bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px)) !important;
+}
+body.android-gesture.is-searching #searching-cancel-btn,
+body.android-gesture.is-searching #searching-state .passenger-pending-cancel {
+    bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
+}
+body.android-3btn.scheduled-reserved-active.client-mode #control-panel,
+body.android-3btn.client-mode.is-searching #control-panel {
+    padding-bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px)) !important;
+}
+body.android-gesture.scheduled-reserved-active.client-mode #control-panel,
+body.android-gesture.client-mode.is-searching #control-panel {
+    padding-bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
+}
+body.scheduled-reserved-active.client-mode #scheduled-trip-card.hr-sched #scheduled-trip-actions {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    z-index: 2;
+    padding-bottom: 0.35rem;
+}
+/* Candado del pasajero: tarjeta fija, sin scroll, sobre la barra del sistema. */
+#passenger-waiting-lock.hr-wait-lock {
+    position: fixed;
+    z-index: 13060;
+    left: max(8px, var(--safe-left, env(safe-area-inset-left, 0px)));
+    right: max(8px, var(--safe-right, env(safe-area-inset-right, 0px)));
+    bottom: calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+    background: #fff;
+    color: #0a1f44;
+    border-radius: 20px;
+    padding: 0.7rem 0.7rem 0.75rem;
+    box-shadow: 0 12px 32px rgba(10, 31, 68, 0.28);
+    border: 1px solid #dbe4f0;
+    pointer-events: auto;
+}
+body.android-3btn #passenger-waiting-lock.hr-wait-lock {
+    bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+}
+body.android-gesture #passenger-waiting-lock.hr-wait-lock {
+    bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+}
+#passenger-waiting-lock.hr-wait-lock.hidden,
+body.is-searching #passenger-waiting-lock,
+body.scheduled-reserved-active #passenger-waiting-lock,
+body.trip-active #passenger-waiting-lock,
+body.driver-mode #passenger-waiting-lock { display: none !important; }
+.hr-wait-lock-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    background: radial-gradient(120% 140% at 90% 0%, #2a5fb8 0%, #123a7a 42%, #0a1f44 88%);
+    color: #fff;
+    border-radius: 16px;
+    padding: 0.65rem 0.7rem;
+}
+.hr-wait-lock-dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: #fbbf24;
+    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.28);
+    flex: 0 0 auto;
+}
+.hr-wait-lock-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hr-wait-lock-copy strong { font-size: 0.92rem; font-weight: 900; line-height: 1.2; }
+.hr-wait-lock-copy small {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #dbe7ff;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hr-wait-lock-open {
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 999px;
+    background: #fbbf24;
+    color: #5b3a00;
+    font-weight: 900;
+    font-size: 0.75rem;
+    padding: 0.45rem 0.7rem;
+}
+.hr-wait-lock-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+.hr-wait-lock-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    text-align: left;
+    background: #f7f9fd;
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    padding: 0.65rem 0.7rem;
+    color: #0a1f44;
+}
+.hr-wait-lock-tile i { color: #94a3b8; font-size: 0.85rem; }
+.hr-wait-lock-tile strong { font-size: 0.92rem; font-weight: 900; }
+.hr-wait-lock-tile small { font-size: 0.68rem; font-weight: 800; color: #64748b; }
+#passenger-home-hub.hrh.hrh--waiting-lock .hr-wait-blocked { opacity: 0.72; }
+#passenger-home-hub.hrh.hrh--waiting-lock .hr-tile.hr-wait-blocked small,
+#passenger-home-hub.hrh.hrh--waiting-lock [data-home-mode].hr-wait-blocked small { color: #64748b !important; }

@@ -426,6 +426,28 @@ module.exports = function createWaCustomerOrder(deps) {
                 if (!acct) { await askPayOrConfirm(from, { ...sess, coCart: cart }, save); return true; }
                 pay = { method: 'saldo', uid: acct.uid };
             }
+            const waitingLock = require('./scheduled-trip-client-lock');
+            let getAuthFn = null;
+            try { getAuthFn = require('firebase-admin/auth').getAuth; } catch (_) {}
+            const staffBuyer = pay?.uid
+                ? await waitingLock.clientAccountIsStaff(db, getAuthFn, APP_ID, pay.uid).catch(() => false)
+                : false;
+            if (!staffBuyer) {
+                const ids = new Set();
+                if (pay?.uid) ids.add(pay.uid);
+                ids.add(`guest_${from}`);
+                const normalizedFrom = normalizePhone(from);
+                if (normalizedFrom) ids.add(`guest_${normalizedFrom}`);
+                let waiting = null;
+                for (const id of ids) {
+                    waiting = await waitingLock.loadWaitingScheduledTrip(db, APP_ID, id).catch(() => null);
+                    if (waiting) break;
+                }
+                if (waiting) {
+                    await send.text(from, `${waitingLock.WAITING_LOCK_TOAST} 🙏`);
+                    return true;
+                }
+            }
             const order = buildWaCustomerOrder({ store, cart, dest: sess.coDest, vehicle: sess.coVehicle, phone: from, name: sess.coName || contactName, nowMs: now(), serverTs: FieldValue.serverTimestamp(), notes: sess.coNotes, recipient: sess.coRecipient, pay });
             const ref = db.collection(`${base}/store_orders`).doc();
             if (pay) {

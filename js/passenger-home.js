@@ -533,6 +533,7 @@ function syncHomeCardsForCity() {
             small.textContent = HOME_CARD_SUB[mode];
         }
     });
+    try { window.hrPaintWaitingLockOnHome?.(); } catch (_) {}
 }
 try { window.refreshPassengerHomeCityServices = () => { try { syncHomeCardsForCity(); } catch (_) {} }; } catch (_) {}
 
@@ -734,9 +735,24 @@ function applyMode(mode) {
     }
 }
 
+const WAITING_LOCK_ENTRY_MODES = new Set(['trip', 'stores', 'delivery', 'freight', 'tow']);
+
 export function setPassengerHomeMode(mode) {
     if (!isClientLike()) return;
     let next = MODE_META[mode] ? mode : 'home';
+
+    if (WAITING_LOCK_ENTRY_MODES.has(next) && window.hrPassengerWaitingLockActive?.()) {
+        const toast = window.HR_WAITING_LOCK_TOAST
+            || 'Tenés un viaje en espera. No podés pedir otro servicio hasta que se complete o lo cancelés.';
+        window.showToast?.(toast, 'warning');
+        window.hrRevealPassengerWaitingLock?.();
+        return;
+    }
+    if (WAITING_LOCK_ENTRY_MODES.has(next) && typeof window.hrPassengerRequestBlocked === 'function') {
+        window.hrPassengerRequestBlocked(next).then((blocked) => {
+            if (blocked && getPassengerHomeMode() === next) setPassengerHomeMode('home');
+        }).catch(() => {});
+    }
 
     // Si está en búsqueda/viaje activo, solo permitir quedarse (no forzar home sin cancelar)
     if (isBusyWithTripUi() && next === 'home') {
@@ -885,6 +901,9 @@ export function initPassengerHome(deps = {}) {
     setTimeout(() => boot('t300'), 300);
     setTimeout(() => boot('t1200'), 1200);
     setTimeout(() => boot('t3000'), 3000);
+    const refreshWaitingLock = () => { try { window.hrRefreshPassengerWaitingLock?.(); } catch (_) {} };
+    setTimeout(refreshWaitingLock, 400);
+    setTimeout(refreshWaitingLock, 1600);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') boot('visible');
     });
