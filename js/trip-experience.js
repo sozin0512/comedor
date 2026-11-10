@@ -273,8 +273,15 @@ export function syncWhenAdderBtnState() {
 export function setWhenAdderOpen(open) {
     const adder = document.getElementById('trip-when-adder');
     if (!adder) return;
+    const wasOpen = !adder.classList.contains('hidden');
     adder.classList.toggle('hidden', !open);
+    if (typeof window !== 'undefined') {
+        window._whenEditorOpen = !!open;
+        document.body?.classList.toggle('when-editor-open', !!open);
+    }
+    if (open) document.getElementById('trip-when-panel')?.classList.remove('hidden');
     syncWhenAdderBtnState();
+    if (open && !wasOpen) window.revealBookingWhenControls?.();
 }
 
 /** Etiqueta del botón: Ahora / Programado para … */
@@ -332,8 +339,11 @@ export function bindWhenAdder() {
     toggle.dataset.bound = '1';
     toggle.addEventListener('click', () => {
         // Abrir para programar no esconde SOLICITAR AHORA mientras siga siendo «Ahora».
+        // No desconfirmar el paso: eso apagaba el botón de pedir.
         const willOpen = adder.classList.contains('hidden');
         setWhenAdderOpen(willOpen);
+        if (willOpen) window.revealBookingWhenControls?.();
+        else window.syncBookingProgression?.({ scroll: false });
     });
     if (closeInline && closeInline.dataset.bound !== '1') {
         closeInline.dataset.bound = '1';
@@ -421,6 +431,7 @@ function showScheduleDraft() {
     updateRequestButtonLabel();
     syncWhenCardSummary();
     window.syncBookingProgression?.({ scroll: false });
+    window.revealBookingWhenControls?.();
 }
 
 function hideScheduleDraft() {
@@ -534,6 +545,7 @@ export function setTripScheduleMode(mode, { expandCustom = false } = {}) {
     }
     updateRequestButtonLabel();
     syncWhenCardSummary();
+    window.revealBookingWhenControls?.();
 }
 
 export function applySchedulePreset(presetId) {

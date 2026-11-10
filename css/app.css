@@ -2639,6 +2639,31 @@
             overscroll-behavior: contain;
             pointer-events: auto;
             padding-bottom: 0.15rem;
+            /* Al abrir «Programar» no anclar el scroll a la tarifa: si no,
+               los botones Ahora / Programar quedan arriba del hueco visible. */
+            overflow-anchor: none;
+        }
+        /* No encoger las tarjetas. Si min-height llega a 0, #trip-when-panel
+           se recorta y solo queda «Elige el momento» encima de la tarifa. */
+        .passenger-booking-progress > .booking-progress-step {
+            flex: 0 0 auto;
+            min-height: min-content;
+            overflow: visible;
+        }
+        .trip-when-adder,
+        #trip-when-panel,
+        .trip-when-modes,
+        .trip-when-schedule {
+            overflow: visible;
+            max-height: none;
+        }
+        body.when-editor-open .passenger-booking-progress {
+            max-height: min(68vh, 36rem);
+            max-height: min(68dvh, 36rem);
+        }
+        body.when-editor-open .booking-float-layer {
+            max-height: min(86vh, 46rem);
+            max-height: min(86dvh, 46rem);
         }
         /* Fijo al borde: las tarjetas de arriba pueden apilarse y hacer scroll;
            SOLICITAR AHORA no se recorta con la barra del teléfono. */

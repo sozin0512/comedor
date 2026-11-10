@@ -156,6 +156,7 @@ import {
     bookingTypeButtonName,
     routePointIsCommitted,
     shouldQuoteRouteNow,
+    scrollDeltaToReveal,
 } from "./booking-primary-action.mjs?v=2026.10.26.100";
 import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.100";
 import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.100";
@@ -40942,6 +40943,30 @@ window.cancelSetupAndLogout = () => {
             document.body.classList.toggle('booking-primary-visible', decision.visible === true);
         };
 
+        window.revealBookingWhenControls = () => {
+            const run = () => {
+                if (window._whenEditorOpen !== true) return;
+                const progress = document.getElementById('passenger-booking-progress');
+                if (!progress) return;
+                const schedule = document.getElementById('trip-when-schedule');
+                const scheduleOpen = !!(schedule && !schedule.classList.contains('hidden'));
+                const draft = document.getElementById('trip-when-draft');
+                const draftOpen = !!(draft && !draft.classList.contains('hidden'));
+                const target = scheduleOpen
+                    ? (draftOpen
+                        ? (document.getElementById('trip-when-draft-confirm') || draft)
+                        : (document.getElementById('trip-when-presets') || schedule))
+                    : document.querySelector('#trip-when-panel .trip-when-modes');
+                const el = target || document.getElementById('trip-when-panel');
+                if (!el) return;
+                const frame = progress.getBoundingClientRect();
+                const box = el.getBoundingClientRect();
+                const delta = scrollDeltaToReveal(frame.top, frame.bottom, box.top, box.bottom, 8);
+                if (delta) progress.scrollTop += delta;
+            };
+            requestAnimationFrame(() => requestAnimationFrame(run));
+        };
+
         window.syncBookingProgression = (opts = {}) => {
             const { forceOpenStep = null, scroll = true } = opts;
             const layer = document.getElementById('booking-float-layer');
@@ -40999,8 +41024,11 @@ window.cancelSetupAndLogout = () => {
                 && parseInt(window.currentPassengers, 10) >= 1
             );
             // «Ahora» ya está elegido: no pedir otro toque para mostrar SOLICITAR AHORA.
-            // Si la persona abrió a propósito «¿cuándo?», no lo volvemos a cerrar.
-            const editingWhen = forceOpenStep === 'when';
+            // Si la persona abrió a propósito «¿cuándo?», no lo volvemos a cerrar
+            // ni a confirmar de nuevo por encima de Programar.
+            const keepWhenEditor = window._whenEditorOpen === true
+                && (forceOpenStep == null || forceOpenStep === 'when');
+            const editingWhen = forceOpenStep === 'when' || keepWhenEditor;
             if (routeReady && serviceReady && paxReady && bookingNowIsDefault() && !editingWhen) {
                 window.whenStepConfirmed = true;
             }
@@ -41056,6 +41084,9 @@ window.cancelSetupAndLogout = () => {
                 whenEl.classList.toggle('booking-progress-step--active', showWhen && !whenReady);
                 whenEl.classList.toggle('booking-progress-step--done', showWhen && whenReady);
             }
+            // Un viaje anterior deja #trip-when-panel en .hidden. Si sigue así,
+            // la tarjeta abre solo «Elige el momento» y no se ve Ahora / Programar.
+            if (showWhen) document.getElementById('trip-when-panel')?.classList.remove('hidden');
             if (reqEl) {
                 reqEl.classList.toggle('hidden', !showRequest);
                 reqEl.classList.toggle('booking-progress-step--active', showRequest);
@@ -41087,9 +41118,14 @@ window.cancelSetupAndLogout = () => {
                             : (showRequest ? 'request' : null)))
             );
             // Elegir personas pedía abrir «¿cuándo?». Si sigue siendo Ahora, el botón de pedir ya puede verse.
-            if (openStep === 'when' && whenReady && bookingNowIsDefault() && forceOpenStep !== 'when') openStep = 'request';
+            if (openStep === 'when' && whenReady && bookingNowIsDefault() && forceOpenStep !== 'when' && !keepWhenEditor) openStep = 'request';
 
-            if (openStep === 'service' && showService && !serviceReady) {
+            if (keepWhenEditor && showWhen) {
+                window.bindWhenAdder?.();
+                window.setServiceAdderOpen?.(false);
+                window.setPassengersAdderOpen?.(false);
+                window.setWhenAdderOpen?.(true);
+            } else if (openStep === 'service' && showService && !serviceReady) {
                 window.setServiceAdderOpen?.(true);
                 window.setPassengersAdderOpen?.(false);
                 if (showWhen) window.setWhenAdderOpen?.(false);

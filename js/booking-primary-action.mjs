@@ -63,6 +63,31 @@ export function bookingNavClearancePx({
     return base + BOOKING_NAV_GAP_PX;
 }
 
+/**
+ * Cuánto sumar a scrollTop para que el bloque de programar quede
+ * dentro del área visible, sin pedirle a la persona que lo busque.
+ * Si el bloque es más alto que el hueco, se alinea arriba para que
+ * se vean primero Ahora / Programar o la fecha.
+ * Coordenadas en el mismo sistema (getBoundingClientRect).
+ */
+export function scrollDeltaToReveal(frameTop, frameBottom, targetTop, targetBottom, pad = 8) {
+    const top = Number(frameTop);
+    const bottom = Number(frameBottom);
+    const tTop = Number(targetTop);
+    const tBottom = Number(targetBottom);
+    if (![top, bottom, tTop, tBottom].every(Number.isFinite)) return 0;
+    const frameH = bottom - top;
+    const targetH = tBottom - tTop;
+    const gap = Math.max(0, Number(pad) || 0);
+    if (frameH <= gap * 2) return tTop - top;
+    if (targetH <= frameH - gap * 2) {
+        if (tBottom > bottom - gap) return tBottom - (bottom - gap);
+        if (tTop < top + gap) return tTop - (top + gap);
+        return 0;
+    }
+    return tTop - (top + gap);
+}
+
 /** El tipo resaltado se puede confirmar solo si de verdad se puede pedir. */
 export function canConfirmHighlightedType({
     type = '',
