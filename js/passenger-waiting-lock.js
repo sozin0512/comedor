@@ -7,7 +7,7 @@ import {
     waitingLockCardHtml,
     waitingLockDecision,
     staffExemptFromWaitingLock
-} from './scheduled-trip-client-lock.js?v=2026.10.26.103';
+} from './scheduled-trip-client-lock.js?v=2026.10.26.104';
 
 const BLOCKED_HOME_MODES = ['trip', 'stores', 'delivery', 'freight', 'tow'];
 
