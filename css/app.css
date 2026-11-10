@@ -2601,16 +2601,27 @@
             position: fixed;
             left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px)));
             right: max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px)));
-            bottom: max(0.85rem, calc(0.55rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
-            z-index: 620;
+            /* 8px de respiro + safe-area. En Android el override de abajo sube el botón
+               por encima de la barra de 3 botones (48px) o de la de gestos (20px). */
+            bottom: calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+            z-index: 640;
             pointer-events: none;
             display: flex;
             flex-direction: column;
             align-items: stretch;
-            max-height: min(62vh, 34rem);
+            max-height: min(72vh, 38rem);
+            max-height: min(72dvh, 38rem);
         }
         .booking-float-layer.hidden {
             display: none !important;
+        }
+        /* Barra de 3 botones: si el WebView no reportó el inset, reservar 48px. */
+        body.android-3btn .booking-float-layer {
+            bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        /* Barra de gestos: al menos 20px, o el safe-area real si es mayor. */
+        body.android-gesture .booking-float-layer {
+            bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
         }
         .booking-float-stack,
         .passenger-booking-progress {
@@ -2618,13 +2629,85 @@
             flex-direction: column;
             gap: 0.5rem;
             min-width: 0;
-            max-height: inherit;
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: min(52vh, 28rem);
+            max-height: min(52dvh, 28rem);
             overflow-x: hidden;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             pointer-events: auto;
             padding-bottom: 0.15rem;
+        }
+        /* Fijo al borde: las tarjetas de arriba pueden apilarse y hacer scroll;
+           SOLICITAR AHORA no se recorta con la barra del teléfono. */
+        .booking-primary-dock {
+            position: fixed;
+            left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+            right: max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+            bottom: calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+            z-index: 660;
+            display: block;
+            margin: 0;
+            pointer-events: auto;
+        }
+        body.android-3btn .booking-primary-dock {
+            bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        body.android-gesture .booking-primary-dock {
+            bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
+        body.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 4.25rem + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
+        body.android-3btn.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 4.25rem + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        body.android-gesture.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 4.25rem + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
+        body.booking-primary-visible #fare-request-btn {
+            display: none;
+        }
+        .booking-primary-dock.hidden {
+            display: none !important;
+        }
+        .booking-continue-btn {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 3rem;
+            padding: 0.75rem 0.85rem;
+            border: 0;
+            border-radius: 1rem;
+            background: linear-gradient(145deg, #1d4ed8, #2563eb);
+            color: #fff;
+            font-weight: 900;
+            font-size: 0.82rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            line-height: 1.15;
+            white-space: normal;
+            box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
+            touch-action: manipulation;
+        }
+        .booking-continue-btn:disabled,
+        .booking-continue-btn[aria-disabled="true"] {
+            background: #94a3b8;
+            box-shadow: none;
+        }
+        @media (max-width: 380px) {
+            .booking-float-layer,
+            .booking-primary-dock {
+                left: max(0.4rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+                right: max(0.4rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+            }
+            .booking-continue-btn {
+                font-size: 0.74rem;
+                letter-spacing: 0.02em;
+                padding: 0.7rem 0.6rem;
+                min-height: 3rem;
+            }
         }
         .booking-float-card,
         .booking-progress-step {
