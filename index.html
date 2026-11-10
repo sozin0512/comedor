@@ -51,6 +51,31 @@
                 window.__hrInstallQueued = true;
             };
         })();
+        // Cascarón en el teléfono (WebView y navegador). Mismo SW de avisos: no es otro sistema.
+        // La primera apertura lo guarda; las siguientes leen HTML/CSS/JS del aparato si la red va lenta.
+        (function () {
+            try {
+                if (!('serviceWorker' in navigator)) return;
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                    (regs || []).forEach(function (reg) {
+                        var script = '';
+                        try {
+                            script = (reg.active && reg.active.scriptURL)
+                                || (reg.waiting && reg.waiting.scriptURL)
+                                || (reg.installing && reg.installing.scriptURL)
+                                || '';
+                        } catch (e1) {}
+                        if (/\/sw\.js(?:\?|$)/i.test(script)) reg.unregister().catch(function () {});
+                    });
+                }).catch(function () {});
+                navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                    scope: '/',
+                    updateViaCache: 'none'
+                }).then(function (reg) {
+                    if (reg && reg.update) reg.update().catch(function () {});
+                }).catch(function () {});
+            } catch (e) {}
+        })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">

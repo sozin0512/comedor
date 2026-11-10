@@ -99,7 +99,7 @@ export async function initTripNotifications() {
                 return Promise.resolve(false);
             }));
         } catch (_) {}
-        swRegistration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
+        swRegistration = await navigator.serviceWorker.register(swUrl, { scope: '/', updateViaCache: 'none' });
         try { swRegistration.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
         try { swRegistration.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
         const readyMs = /iP(hone|ad|od)/i.test(navigator.userAgent || '') ? 15000 : 4000;
