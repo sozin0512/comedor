@@ -27228,6 +27228,17 @@ body.driver-moto-compact #driver-active-veh-badge .hr-veh-badge {
 body.driver-moto-compact .hr-moto-primary {
     min-height: 48px;
 }
+/* Entrega de tienda: «Pedido entregado» es la única acción principal.
+   «Llegué al destino» (ficha y pastilla) llama a la misma llegada y queda oculto
+   mientras el panel está abierto. Con el panel minimizado, la pastilla sigue siendo
+   el único control. Viajes con PIN no usan driver-moto-compact. */
+body.trip-active.driver-mode.driver-moto-compact.driver-trip-dest-phase:not(.panel-minimized) #driver-panel-arrived-dest-btn,
+body.trip-active.driver-mode.driver-moto-compact.driver-trip-dest-phase:not(.panel-minimized) #driver-arrived-dest-float,
+body.trip-active.driver-mode.driver-moto-compact.driver-trip-dest-phase:not(.panel-minimized) #trip-floats-layer #driver-arrived-dest-float {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
 body.driver-moto-compact #driver-trip-commission .hr-comm {
     margin-top: 0.35rem;
     padding: 0.4rem 0.55rem;

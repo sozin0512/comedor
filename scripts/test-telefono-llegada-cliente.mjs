@@ -126,9 +126,9 @@ check('antes de llegar el contacto de detalles sigue y el aviso de llegada no', 
     assert.match(html, /wa\.me\/50499992222/);
 });
 
-check('la versión publicada es .59 y la ficha staff sigue', () => {
+check('la versión publicada sigue en .99 y la ficha staff sigue', () => {
     const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8'));
-    assert.equal(version.version, '2026.10.26.59');
+    assert.equal(version.version, '2026.10.26.99');
     const app = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
     assert.match(app, /storeAcceptedPanelHtml\(data, fee, \{ viewerId: currentUser\?\.uid \|\| '' \}\)/);
     assert.match(app, /const isMine = data\?\.driverId === currentUser\?\.uid/);
