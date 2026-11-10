@@ -27857,3 +27857,52 @@ html.hr-lite body.driver-mode #active-trip-panel .driver-panel-arrived-btn,
 html.hr-lite body.driver-mode #active-trip-panel .driver-pin-submit { background: #1e6bd6 !important; }
 html.hr-lite body.driver-mode #active-trip-panel .driver-panel-arrived-dest-btn { background: #059669 !important; }
 html.hr-lite body.driver-mode #control-panel { box-shadow: 0 -2px 8px rgba(15,23,42,.12) !important; }
+
+/* v.98 · Viaje programado: tarjeta ordenada estilo HonduRaite */
+#scheduled-trip-card.hr-sched { background: #fff !important; border: 1px solid #dbe4f0 !important; border-radius: 20px !important; padding: 0 0 0.8rem !important; margin: 0.5rem 0.25rem !important; text-align: left !important; overflow: hidden; box-shadow: 0 8px 22px rgba(10,31,68,.1); }
+#scheduled-trip-card.hr-sched > i, #scheduled-trip-card.hr-sched > p { display: none !important; }
+#scheduled-trip-card.hr-sched #scheduled-trip-detail { padding: 0 !important; }
+.hr-sched-head { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.5rem; padding: 0.8rem 0.95rem 1rem; color: #fff;
+    background: radial-gradient(120% 140% at 90% 0%, #2a5fb8 0%, #123a7a 40%, #0a1f44 85%); }
+.hr-sched-head::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: linear-gradient(90deg, #1e6bd6 0 33%, #fff 33% 66%, #1e6bd6 66%); }
+.hr-sched-kicker { font-size: 0.64rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #bcd4ff; align-self: center; }
+.hr-sched-left { font-size: 0.68rem; font-weight: 900; background: #fbbf24; color: #5b3a00; border-radius: 999px; padding: 0.2rem 0.6rem; white-space: nowrap; }
+.hr-sched-hour { grid-column: 1 / -1; font-size: 1.9rem; font-weight: 900; font-style: italic; line-height: 1.05; letter-spacing: -0.02em; }
+.hr-sched-day { grid-column: 1 / -1; font-size: 0.82rem; font-weight: 700; color: #e6efff; text-transform: capitalize; }
+.hr-sched-row { display: flex; align-items: center; gap: 0.65rem; padding: 0.75rem 0.95rem 0.2rem; }
+.hr-sched-ico { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: #e6f0ff; color: #1e6bd6; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.hr-sched-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hr-sched-txt small, .hr-sched-route small { font-size: 0.6rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: #5b6b85; display: block; }
+.hr-sched-txt b { font-size: 0.95rem; font-weight: 900; color: #0a1f44; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-sched-price { font-size: 1rem; font-weight: 900; color: #0a1f44; }
+.hr-sched-pin { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0.6rem 0.95rem 0; padding: 0.5rem 0.7rem; border-radius: 14px; background: #f3f7fd; border: 1px solid #dbe4f0; }
+.hr-sched-pin span b { display: block; font-size: 0.8rem; font-weight: 900; color: #123a7a; }
+.hr-sched-pin span small { font-size: 0.64rem; color: #5b6b85; font-weight: 700; }
+.hr-sched-pin div { display: flex; gap: 0.3rem; }
+.hr-sched-pin i { font-style: normal; width: 2rem; height: 2.3rem; border-radius: 9px; background: #fff; border: 1.5px solid #b9d3fb; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 900; color: #0a1f44; }
+.hr-sched-route { margin: 0.7rem 0.95rem 0; padding-left: 0.1rem; position: relative; }
+.hr-sched-route p { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0 0 0.55rem; font-size: 0.85rem; font-weight: 800; color: #0b1730; line-height: 1.25; }
+.hr-sched-route p:last-child { margin-bottom: 0; }
+.hr-sched-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 0.3rem; flex: 0 0 auto; }
+.hr-sched-dot.a { background: #1e6bd6; box-shadow: 0 0 0 4px rgba(30,107,214,.18); }
+.hr-sched-dot.b { background: #0a1f44; border-radius: 3px; }
+.hr-sched-fare { display: flex; justify-content: space-between; align-items: center; margin: 0.7rem 0.95rem 0; padding-top: 0.6rem; border-top: 1px dashed #dbe4f0; font-size: 0.8rem; font-weight: 800; color: #5b6b85; }
+.hr-sched-fare b { font-size: 1.05rem; color: #0a1f44; font-weight: 900; }
+.hr-sched-note { margin: 0.7rem 0.95rem 0; font-size: 0.72rem; color: #5b6b85; font-weight: 600; line-height: 1.35; }
+.hr-sched-note i { color: #1e6bd6; margin-right: 0.2rem; }
+#scheduled-trip-card.hr-sched #scheduled-trip-actions { padding: 0 0.95rem; display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.75rem; }
+#scheduled-trip-card.hr-sched #scheduled-trip-actions:empty { display: none; }
+.hr-sched-btn { width: 100%; padding: 0.85rem; border-radius: 14px; font-weight: 900; font-size: 0.82rem; border: 0; }
+.hr-sched-btn--go { color: #fff; background: radial-gradient(120% 160% at 90% 0%, #3b8bff, #1e6bd6 45%, #123a7a); box-shadow: 0 8px 18px rgba(30,107,214,.3); }
+.hr-sched-btn--sec { background: #eef4ff; color: #123a7a; border: 1px solid #cfe0fb; }
+.hr-sched-cancel { width: 100%; padding: 0.75rem; border-radius: 14px; background: #fff; border: 1px solid #fecaca; color: #dc2626; font-weight: 900; font-size: 0.75rem; text-transform: uppercase; letter-spacing: .08em; }
+/* Con la reserva a la vista, nada del formulario de pedir viaje encima */
+body.scheduled-reserved-active.client-mode #passenger-mode-bar,
+body.scheduled-reserved-active.client-mode #booking-float-layer,
+body.scheduled-reserved-active.client-mode #passenger-home-hub { display: none !important; }
+/* La reserva programada se ve completa (panel hasta 86% de la pantalla), también para el conductor */
+body.scheduled-reserved-active:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    max-height: min(86dvh, 54rem) !important;
+    height: auto !important;
+}
+body.scheduled-reserved-active:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content { max-height: none !important; overflow-y: auto !important; }
