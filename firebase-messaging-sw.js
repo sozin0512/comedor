@@ -5,7 +5,13 @@ const HR_SW_VERSION = '2026.10.26.100';
  * listener de `push` y en iOS, si ese handler no llama showNotification
  * (o rechaza por vibrate/requireInteraction), Safari REVOCA el permiso.
  * El token FCM se obtiene en la página con getToken({ serviceWorkerRegistration }).
+ *
+ * También guarda el cascarón (HTML/CSS/JS) en el teléfono vía js/shell-cache.js.
+ * Si ese archivo falta, los avisos siguen funcionando.
  */
+try {
+    importScripts('/js/shell-cache.js');
+} catch (e) {}
 
 const ICON = '/icons/icon-192.png';
 const recentShownTags = new Set();
@@ -191,7 +197,16 @@ self.addEventListener('message', (event) => {
     if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (event) => {
+    event.waitUntil((async () => {
+        try {
+            if (self.HrShellCache && self.caches) {
+                await self.HrShellCache.purgeOldShellCaches(self.caches, HR_SW_VERSION);
+            }
+        } catch (e) {}
+        await self.clients.claim();
+    })());
+});
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
@@ -276,4 +291,35 @@ self.addEventListener('notificationclick', (event) => {
             return self.clients.openWindow(url.href);
         })
     );
+});
+
+// HTML/CSS/JS del cascarón: desde el teléfono si ya se abrió; se renueva con HR_SW_VERSION.
+self.addEventListener('fetch', (event) => {
+    const api = self.HrShellCache;
+    if (!api || !event.request) return;
+    let plan;
+    try {
+        plan = api.planFetch(event.request, self.location.origin);
+    } catch (e) {
+        return;
+    }
+    if (!plan || plan.kind === 'passthrough') return;
+    event.respondWith((async () => {
+        try {
+            const cache = await caches.open(api.shellCacheName(HR_SW_VERSION));
+            const result = await api.handlePlannedFetch(plan, {
+                request: event.request,
+                cache,
+                fetchImpl: (req) => fetch(req),
+                timeoutMs: plan.timeoutMs
+            });
+            if (!result || !result.response) return fetch(event.request);
+            if (result.background) {
+                try { event.waitUntil(Promise.resolve(result.background).catch(() => {})); } catch (e) {}
+            }
+            return result.response;
+        } catch (e) {
+            return fetch(event.request);
+        }
+    })());
 });

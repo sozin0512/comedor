@@ -449,6 +449,7 @@ async function waitForServiceWorkerReady(reg, timeoutMs) {
 }
 
 export async function bootWebPushServiceWorker() {
+    // APK: el push es nativo. El SW igual se registra en index.html para cachear el cascarón.
     if (isCapacitorNative()) return null;
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
     try {
@@ -474,7 +475,7 @@ async function registerMessagingServiceWorker() {
             }));
         } catch (_) {}
     }
-    const reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
+    const reg = await navigator.serviceWorker.register(swUrl, { scope: '/', updateViaCache: 'none' });
     try { reg.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
     try { reg.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
     return waitForServiceWorkerReady(reg, isIOS() ? 15000 : 4000);

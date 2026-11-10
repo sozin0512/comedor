@@ -1,6 +1,7 @@
 /* HonduRaite — SW de respaldo.
  * El push vive en firebase-messaging-sw.js. Si iOS deja sw.js como controlador,
- * importScripts copia esos listeners (sin esto el push no muestra aviso y Safari revoca el permiso).
+ * importScripts copia esos listeners (avisos y caché del cascarón).
+ * Sin esto el push no muestra aviso y Safari revoca el permiso.
  */
 try {
     importScripts('/firebase-messaging-sw.js');
