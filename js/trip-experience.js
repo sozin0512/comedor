@@ -306,7 +306,9 @@ export function syncWhenCardSummary() {
     }
     if (badgeEl) {
         if (!later) {
-            badgeEl.textContent = 'Toca para programar';
+            badgeEl.textContent = (typeof window !== 'undefined' && window.whenStepConfirmed)
+                ? 'Listo · toca para programar'
+                : 'Toca para programar';
         } else if (pending) {
             badgeEl.textContent = 'Toca «Confirmar fecha y hora»';
         } else if (hasSummary) {
@@ -329,10 +331,7 @@ export function bindWhenAdder() {
     }
     toggle.dataset.bound = '1';
     toggle.addEventListener('click', () => {
-        if (window.whenStepConfirmed) {
-            window.goBackBookingStep?.('when');
-            return;
-        }
+        // Abrir para programar no esconde SOLICITAR AHORA mientras siga siendo «Ahora».
         const willOpen = adder.classList.contains('hidden');
         setWhenAdderOpen(willOpen);
     });

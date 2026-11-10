@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.99";
+} from "./auth-credentials.js?v=2026.10.26.100";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.99";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.99";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.100";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.100";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.99";
+} from "./market.js?v=2026.10.26.100";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.99";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.99";
+} from "./phone-utils.js?v=2026.10.26.100";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.100";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.99";
+} from "./referrals.js?v=2026.10.26.100";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.99";
+} from "./zones.js?v=2026.10.26.100";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.99";
+} from "./trip-notifications.js?v=2026.10.26.100";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.99";
+} from "./notification-tones.js?v=2026.10.26.100";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.99";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.100";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.99";
+} from "./passenger-alerts.js?v=2026.10.26.100";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.99";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.99";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.99";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.99";
+} from "./passenger-verification.js?v=2026.10.26.100";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.100";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.100";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.100";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.99";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.100";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.99";
+} from "./feedback.js?v=2026.10.26.100";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.99";
+} from "./greetings.js?v=2026.10.26.100";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,9 +148,17 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.26.99";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.99";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.99";
+} from "./service-types.js?v=2026.10.26.100";
+import {
+    bookingPrimaryAction,
+    serviceStepCopy,
+    canConfirmHighlightedType,
+    bookingTypeButtonName,
+    routePointIsCommitted,
+    shouldQuoteRouteNow,
+} from "./booking-primary-action.mjs?v=2026.10.26.100";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.100";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.100";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -175,23 +183,23 @@ import {
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml,
     usesTimedExclusiveOffer
-} from "./store-delivery-rotation.js?v=2026.10.26.99";
+} from "./store-delivery-rotation.js?v=2026.10.26.100";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.99";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.100";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.99";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.99";
+} from "./service-availability.js?v=2026.10.26.100";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.100";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.99";
+} from "./trip-wait.js?v=2026.10.26.100";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
@@ -208,49 +216,49 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
-} from "./driver-vehicles-v2.js?v=2026.10.26.99";
+} from "./driver-vehicles-v2.js?v=2026.10.26.100";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.99";
+} from "./route-fixed-fares.js?v=2026.10.26.100";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.99";
+} from "./commission-free-day.js?v=2026.10.26.100";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.99";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.99";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.99";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.99";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.99";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.99";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.99";
+} from "./route-conditions.js?v=2026.10.26.100";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.100";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.100";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.100";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.100";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.100";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.100";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.99";
+} from "./demand-heatmap.js?v=2026.10.26.100";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.99";
+} from "./ops-fleet-map.js?v=2026.10.26.100";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.99";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.99";
+} from "./live-trip-keepalive.js?v=2026.10.26.100";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.100";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.99";
+} from "./driver-session.js?v=2026.10.26.100";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -259,7 +267,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.99";
+} from "./session-keepalive.js?v=2026.10.26.100";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -349,32 +357,32 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.99";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.100";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.99";
+} from "./auth-ui.js?v=2026.10.26.100";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.99";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.99";
+} from "./age-verification.js?v=2026.10.26.100";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.100";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.99";
-import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.99";
-import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.99";
+} from "./trip-experience.js?v=2026.10.26.100";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.100";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.100";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.99";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.99";
+} from "./support-tickets.js?v=2026.10.26.100";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.100";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.99";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.99";
-import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.99";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.100";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.100";
+import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.100";
 
 // ==================== CONFIRMACIÓN IN-APP (reemplaza window.confirm nativo) ====================
 // En el APK (Android WebView) el confirm() nativo bloquea el hilo JS y a veces se queda pegado.
@@ -6884,13 +6892,29 @@ if (document.readyState === 'loading') {
             if (!originEl || !destEl) return;
 
             const isHourly = window.currentBookingMode === 'hourly';
-            const hasOrigin = !!(window.readAutocompleteText?.(originEl) || originEl._routeEndpoint?.address);
-            const hasDest = !!(window.readAutocompleteText?.(destEl) || destEl._routeEndpoint?.address);
-
-            // For hourly: only origin required to show options (dest is optional)
-            const ready = isHourly ? hasOrigin : (hasOrigin && hasDest);
+            const ready = shouldQuoteRouteNow({
+                origin: originEl._routeEndpoint,
+                destination: destEl._routeEndpoint,
+                hourly: isHourly,
+            });
             const isSpecialService = window.currentServiceType === 'delivery' || isFreightService(window.currentServiceType);
             const showRideCards = ready && !isHourly && !isSpecialService;
+
+            // Texto a medio escribir: no spinner, no geocoder y no rearmar las tarjetas.
+            // Las sugerencias de Places tienen que salir al momento.
+            if (!ready) {
+                const midType = (el) => {
+                    const text = (window.readAutocompleteText?.(el) || '').trim();
+                    return text.length >= 3 && !routePointIsCommitted(el?._routeEndpoint);
+                };
+                if (rideOptions && (midType(originEl) || midType(destEl) || !isHourly)) {
+                    rideOptions.classList.add('hidden');
+                }
+                if (!midType(originEl) && !midType(destEl)) {
+                    window.syncBookingProgression?.({ scroll: false });
+                }
+                return;
+            }
 
             // El picker vive en la tarjeta flotante; no forzar el wrap del panel.
 
@@ -7190,6 +7214,7 @@ if (document.readyState === 'loading') {
 
             fareCard?.classList.remove('hidden');
             document.getElementById('passenger-booking-request')?.classList.add('is-ready');
+            window.syncBookingPrimaryAction?.();
             const reqHint = document.getElementById('trip-request-hint');
             if (reqHint) reqHint.classList.add('hidden');
             if (scroll) window.scrollFareCardIntoView?.();
@@ -7215,7 +7240,9 @@ if (document.readyState === 'loading') {
         window.showRideOptionsCalculating = () => {
             const list = document.getElementById('ride-options-list');
             if (!list) return;
+            window._bookingFaresReady = false;
             list.innerHTML = '<div class="p-3 text-xs font-bold text-gray-500 flex items-center gap-2"><i class="fas fa-spinner fa-spin"></i> Calculando precio por calles…</div>';
+            window.syncBookingPrimaryAction?.();
         };
         window.renderRideOptions = (route, { syncFare = true } = {}) => {
             const list = document.getElementById('ride-options-list');
@@ -7346,9 +7373,11 @@ if (document.readyState === 'loading') {
                 list.appendChild(card);
             });
 
+            window._bookingFaresReady = types.length > 0;
             if (route && syncFare) {
                 window.syncFareCardFromRoute(route);
             }
+            window.syncBookingPrimaryAction?.();
         };
 
         window.selectServiceType = (type, { keepFareVisible = false, skipCityCheck = false, confirmStep = false } = {}) => {
@@ -40418,6 +40447,8 @@ window.cancelSetupAndLogout = () => {
          * 2) eligió tipo → sale tarjeta pasajeros (desplegada)
          * 3) eligió personas → sale tarjeta ¿ahora o después? (desplegada)
          * 4) confirmó momento → sale tarjeta pedir viaje + tarifa
+         * Con tarifas en pantalla el botón fijo (#booking-continue-btn) sigue visible:
+         * confirma el tipo resaltado, luego personas, luego ahora/después, y al final pide.
          */
         window.whenStepConfirmed = false;
         window.serviceTypeChosen = window.serviceTypeChosen === true;
@@ -40517,16 +40548,19 @@ window.cancelSetupAndLogout = () => {
             const iconEl = document.querySelector('#add-service-btn .add-extra-stop-btn-icon i');
             const chosen = window.serviceTypeChosen === true;
             const meta = getServiceMeta(window.currentServiceType || 'auto');
+            const hi = typeof highlightedBookingTypeState === 'function' ? highlightedBookingTypeState() : null;
+            const copy = serviceStepCopy({
+                chosen,
+                highlightedName: hi?.available ? hi.name : '',
+                chosenLabel: meta.shortLabel || meta.label || 'Tipo de servicio',
+            });
             if (wrap) wrap.classList.toggle('trip-service-choice-wrap--missing', !chosen);
-            if (btn) btn.classList.toggle('is-chosen', chosen);
-            if (labelEl) {
-                labelEl.textContent = chosen
-                    ? (meta.shortLabel || meta.label || 'Tipo de servicio')
-                    : 'Tipo de servicio';
+            if (btn) {
+                btn.classList.toggle('is-chosen', chosen);
+                btn.classList.toggle('is-pending-confirm', copy.highlightedPending === true);
             }
-            if (badgeEl) {
-                badgeEl.textContent = chosen ? 'Listo · toca para cambiar' : 'Toca para elegir';
-            }
+            if (labelEl) labelEl.textContent = copy.title;
+            if (badgeEl) badgeEl.textContent = copy.badge;
             if (iconEl && meta) {
                 iconEl.className = getServiceIconClass(meta) || 'fas fa-taxi';
             }
@@ -40616,6 +40650,7 @@ window.cancelSetupAndLogout = () => {
                 window.whenStepConfirmed = false;
                 window.passengersChosen = false;
                 window.serviceTypeChosen = false;
+                window._bookingFaresReady = false;
                 document.body.classList.remove('panel-minimized', 'panel-collapsed', 'panel-hidden');
                 const panel = document.getElementById('control-panel');
                 panel?.classList.remove('panel-collapsed', 'panel-hidden');
@@ -40666,6 +40701,7 @@ window.cancelSetupAndLogout = () => {
             window.whenStepConfirmed = false;
             window.passengersChosen = false;
             window.serviceTypeChosen = false;
+            window._bookingFaresReady = false;
             window.currentPassengers = null;
             window.currentBookingMode = 'standard';
             window.currentReservedHours = 1;
@@ -40698,6 +40734,7 @@ window.cancelSetupAndLogout = () => {
             window.setPassengersAdderOpen?.(false);
             window.setWhenAdderOpen?.(false);
             try { window.syncServiceCardSummary?.(); } catch (_) {}
+            try { window.syncBookingPrimaryAction?.(); } catch (_) {}
             try { window.renderTripPassengerChips?.(); } catch (_) {}
             try { window.syncWhenCardSummary?.(); } catch (_) {}
             try { window.updateOriginGPSButton?.(); } catch (_) {}
@@ -40755,6 +40792,156 @@ window.cancelSetupAndLogout = () => {
             }
         };
 
+        /** Tipo resaltado (Taxi VIP por defecto) y si de verdad se puede pedir. */
+        function highlightedBookingTypeState() {
+            const type = normalizeServiceType(window.currentServiceType || 'auto');
+            const btn = document.getElementById(`svc-btn-${type}`);
+            const zoneId = window.activeServiceZoneId || getDefaultZoneId?.() || null;
+            const cityBlocked = !!isServiceTypeDisabledInCity?.(type, zoneId);
+            const marketBlocked = typeof isServiceAllowedInMarket === 'function' && !isServiceAllowedInMarket(type);
+            const maleMoto = type === 'moto' && !!isMalePassengerMotoRideBlocked?.();
+            const meta = getServiceMeta(type);
+            const available = canConfirmHighlightedType({
+                type,
+                disabledTypes: (cityBlocked || marketBlocked || maleMoto) ? [type] : [],
+                ariaDisabled: btn?.getAttribute('aria-disabled') === 'true',
+                buttonDisabled: !!btn?.disabled,
+                unavailable: !!btn?.classList.contains('hr-svc-unavailable'),
+            });
+            return {
+                type,
+                available,
+                name: bookingTypeButtonName(type, meta?.label || ''),
+                meta,
+            };
+        }
+        window.highlightedBookingTypeState = highlightedBookingTypeState;
+
+        /** «Ahora» es el valor de la tarjeta. Programar solo si el toggle está activo o hay un borrador de hora. */
+        function bookingNowIsDefault() {
+            const later = !!document.getElementById('trip-schedule-toggle')?.checked;
+            const pending = window._tripScheduleDraftPending === true;
+            return !later && !pending;
+        }
+        window.bookingNowIsDefault = bookingNowIsDefault;
+
+        function bookingFaresAreVisible() {
+            if (window._bookingFaresReady === true) return true;
+            const ride = document.getElementById('ride-options');
+            const list = document.getElementById('ride-options-list');
+            const rideOpen = !!(ride && !ride.classList.contains('hidden'));
+            if (rideOpen && list?.querySelector('.ride-card .price-value')) return true;
+            const fareCard = document.getElementById('fare-card');
+            if (!fareCard || fareCard.classList.contains('hidden')) return false;
+            const price = document.getElementById('price-display')?.textContent?.trim() || '';
+            return !!price && price !== 'L. 0.00' && price !== '$0.00';
+        }
+
+        function currentRequestButtonLabel() {
+            const fareBtn = document.getElementById('fare-request-btn');
+            const span = fareBtn?.querySelector('.pointer-events-none')?.textContent?.trim();
+            if (span) return span;
+            const raw = fareBtn?.textContent?.trim();
+            return raw || 'SOLICITAR AHORA';
+        }
+
+        window.bindBookingPrimaryAction = () => {
+            const btn = document.getElementById('booking-continue-btn');
+            if (!btn || btn.dataset.bound === '1') return;
+            btn.dataset.bound = '1';
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const mode = btn.dataset.bookingMode || '';
+                if (mode === 'blocked' || btn.disabled || btn.getAttribute('aria-disabled') === 'true') {
+                    window.showToast?.('Ese tipo no está disponible en tu ciudad. Elegí otro.', 'warning');
+                    return;
+                }
+                if (mode === 'confirm-service') {
+                    const hi = highlightedBookingTypeState();
+                    if (!hi.available || !canConfirmHighlightedType({
+                        type: hi.type,
+                        disabledTypes: hi.available ? [] : [hi.type],
+                        ariaDisabled: document.getElementById(`svc-btn-${hi.type}`)?.getAttribute('aria-disabled') === 'true',
+                        buttonDisabled: !!document.getElementById(`svc-btn-${hi.type}`)?.disabled,
+                        unavailable: !!document.getElementById(`svc-btn-${hi.type}`)?.classList.contains('hr-svc-unavailable'),
+                    })) {
+                        window.showToast?.('Ese tipo no está disponible en tu ciudad. Elegí otro.', 'warning');
+                        window.syncBookingPrimaryAction?.();
+                        return;
+                    }
+                    // Confirma el tipo YA resaltado. No salta personas ni «ahora o después».
+                    window.selectServiceType?.(hi.type, { keepFareVisible: true, confirmStep: true });
+                    return;
+                }
+                if (mode === 'passengers') {
+                    window.syncBookingProgression?.({ forceOpenStep: 'passengers', scroll: true });
+                    return;
+                }
+                if (mode === 'when') {
+                    window.syncBookingProgression?.({ forceOpenStep: 'when', scroll: true });
+                    return;
+                }
+                if (mode === 'request') {
+                    const needsPax = typeof requiresPassengerCountChoice === 'function'
+                        && requiresPassengerCountChoice(window.currentServiceType);
+                    const paxOk = !needsPax || (typeof hasChosenPassengerCount === 'function' && hasChosenPassengerCount());
+                    const nowDefault = typeof bookingNowIsDefault === 'function' && bookingNowIsDefault();
+                    if (nowDefault) window.whenStepConfirmed = true;
+                    const ready = window.serviceTypeChosen === true && paxOk && (window.whenStepConfirmed === true || nowDefault);
+                    if (!ready) {
+                        window.syncBookingProgression?.({ scroll: true });
+                        return;
+                    }
+                    window.sendTripRequest?.();
+                }
+            });
+        };
+
+        window.syncBookingPrimaryAction = () => {
+            const dock = document.getElementById('booking-primary-dock');
+            const btn = document.getElementById('booking-continue-btn');
+            const labelEl = document.getElementById('booking-continue-label');
+            if (!dock || !btn) return;
+            try { window.syncDriverSheetSafeArea?.(); } catch (_) {}
+
+            const layerHidden = !!document.getElementById('booking-float-layer')?.classList.contains('hidden');
+            const blockedUi = document.body.classList.contains('passenger-mode-home')
+                || document.body.classList.contains('is-searching')
+                || document.body.classList.contains('trip-active')
+                || document.body.classList.contains('driver-mode')
+                || document.body.classList.contains('map-pick-mode');
+            const hi = highlightedBookingTypeState();
+            const needsPax = typeof requiresPassengerCountChoice === 'function'
+                ? requiresPassengerCountChoice(window.currentServiceType)
+                : true;
+            const decision = bookingPrimaryAction({
+                routeReady: !layerHidden && !blockedUi && !!window.isBookingRouteReady?.(),
+                faresVisible: bookingFaresAreVisible(),
+                serviceTypeChosen: window.serviceTypeChosen === true,
+                needsService: !!window.needsServiceTypeChoice?.(),
+                needsPassengers: needsPax,
+                passengersChosen: typeof hasChosenPassengerCount === 'function'
+                    ? hasChosenPassengerCount()
+                    : window.passengersChosen === true,
+                whenConfirmed: window.whenStepConfirmed === true,
+                nowIsDefault: bookingNowIsDefault(),
+                highlightedType: hi.type,
+                highlightedAvailable: hi.available,
+                highlightedName: hi.name,
+                requestLabel: currentRequestButtonLabel(),
+            });
+
+            dock.classList.toggle('hidden', !decision.visible);
+            dock.dataset.mode = decision.mode || 'hidden';
+            btn.dataset.bookingMode = decision.mode || 'hidden';
+            btn.disabled = !!decision.disabled;
+            btn.setAttribute('aria-disabled', decision.disabled ? 'true' : 'false');
+            btn.setAttribute('aria-label', decision.label || 'Continuar');
+            if (labelEl) labelEl.textContent = decision.label || '';
+            document.body.classList.toggle('booking-primary-visible', decision.visible === true);
+        };
+
         window.syncBookingProgression = (opts = {}) => {
             const { forceOpenStep = null, scroll = true } = opts;
             const layer = document.getElementById('booking-float-layer');
@@ -40763,6 +40950,8 @@ window.cancelSetupAndLogout = () => {
                     .forEach((id) => document.getElementById(id)?.classList.add('hidden'));
                 layer?.classList.add('hidden');
                 document.body.classList.remove('booking-float-active');
+                document.getElementById('booking-primary-dock')?.classList.add('hidden');
+                document.body.classList.remove('booking-primary-visible');
             };
 
             // No mostrar en menú inicio / búsqueda / viaje activo / conductor
@@ -40809,6 +40998,12 @@ window.cancelSetupAndLogout = () => {
                 && Number.isFinite(parseInt(window.currentPassengers, 10))
                 && parseInt(window.currentPassengers, 10) >= 1
             );
+            // «Ahora» ya está elegido: no pedir otro toque para mostrar SOLICITAR AHORA.
+            // Si la persona abrió a propósito «¿cuándo?», no lo volvemos a cerrar.
+            const editingWhen = forceOpenStep === 'when';
+            if (routeReady && serviceReady && paxReady && bookingNowIsDefault() && !editingWhen) {
+                window.whenStepConfirmed = true;
+            }
             const whenReady = window.whenStepConfirmed === true;
 
             const showService = routeReady && needsService;
@@ -40885,12 +41080,14 @@ window.cancelSetupAndLogout = () => {
             window.syncServiceCardSummary?.();
 
             // Desplegar el paso actual (como se abre «Agregar parada»)
-            const openStep = forceOpenStep || (
+            let openStep = forceOpenStep || (
                 showService && !serviceReady ? 'service'
                     : (showPax && !paxReady ? 'passengers'
                         : (showWhen && !whenReady ? 'when'
                             : (showRequest ? 'request' : null)))
             );
+            // Elegir personas pedía abrir «¿cuándo?». Si sigue siendo Ahora, el botón de pedir ya puede verse.
+            if (openStep === 'when' && whenReady && bookingNowIsDefault() && forceOpenStep !== 'when') openStep = 'request';
 
             if (openStep === 'service' && showService && !serviceReady) {
                 window.setServiceAdderOpen?.(true);
@@ -40937,6 +41134,8 @@ window.cancelSetupAndLogout = () => {
             if (!anyVisible) hideAll();
 
             window._bookingProgressLast = `${routeReady}|${serviceReady}|${paxReady}|${whenReady}|${svc}`;
+            window.bindBookingPrimaryAction?.();
+            window.syncBookingPrimaryAction?.();
         };
 
         window.confirmWhenStep = (mode = 'now') => {
@@ -41045,11 +41244,11 @@ window.cancelSetupAndLogout = () => {
                     }
                     window.currentPassengers = p;
                     window.passengersChosen = true;
-                    // Al elegir personas → cierra esta tarjeta y DESPLIEGA la de «¿cuándo?»
+                    // Personas listas y «Ahora» ya es el valor: sale SOLICITAR AHORA, sin tocar esa tarjeta.
                     window.setPassengersAdderOpen?.(false);
                     window.renderTripPassengerChips();
                     recalcFareAfterPassengerChange();
-                    window.syncBookingProgression?.({ forceOpenStep: 'when', scroll: true });
+                    window.syncBookingProgression?.({ scroll: true });
                 });
             }
 
