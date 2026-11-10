@@ -613,6 +613,15 @@ function applyMode(mode) {
     const reenter = (document.body.dataset.passengerMode === mode) && mode !== 'home';
 
     document.body.dataset.passengerMode = mode;
+    // v.100 · Al cambiar de modo sin el buscador abierto, quitar medidas fijas que dejó el buscador
+    if (!document.body.classList.contains('trip-autocomplete-open')) {
+        try {
+            const pnl = document.getElementById('control-panel');
+            if (pnl && (pnl.style.getPropertyPriority('min-height') === 'important' || pnl.style.getPropertyPriority('top') === 'important')) {
+                window.hrClearPanelSearchInline?.(pnl);
+            }
+        } catch (_) {}
+    }
     document.body.classList.toggle('passenger-mode-home', mode === 'home');
     document.body.classList.toggle('passenger-mode-active', mode !== 'home');
     document.body.classList.toggle('passenger-mode-trip', mode === 'trip');
