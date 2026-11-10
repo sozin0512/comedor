@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.101";
+} from "./auth-credentials.js?v=2026.10.26.102";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.101";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.101";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.102";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.102";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.101";
+} from "./market.js?v=2026.10.26.102";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.101";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.101";
+} from "./phone-utils.js?v=2026.10.26.102";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.102";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.101";
+} from "./referrals.js?v=2026.10.26.102";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.101";
+} from "./zones.js?v=2026.10.26.102";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.101";
+} from "./trip-notifications.js?v=2026.10.26.102";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.101";
+} from "./notification-tones.js?v=2026.10.26.102";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.101";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.102";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.101";
+} from "./passenger-alerts.js?v=2026.10.26.102";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.101";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.101";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.101";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.101";
+} from "./passenger-verification.js?v=2026.10.26.102";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.102";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.102";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.102";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.101";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.102";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.101";
+} from "./feedback.js?v=2026.10.26.102";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.101";
+} from "./greetings.js?v=2026.10.26.102";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,7 +148,7 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.26.101";
+} from "./service-types.js?v=2026.10.26.102";
 import {
     bookingPrimaryAction,
     serviceStepCopy,
@@ -157,9 +157,9 @@ import {
     routePointIsCommitted,
     shouldQuoteRouteNow,
     scrollDeltaToReveal,
-} from "./booking-primary-action.mjs?v=2026.10.26.101";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.101";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.101";
+} from "./booking-primary-action.mjs?v=2026.10.26.102";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.102";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.102";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -184,23 +184,45 @@ import {
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml,
     usesTimedExclusiveOffer
-} from "./store-delivery-rotation.js?v=2026.10.26.101";
+} from "./store-delivery-rotation.js?v=2026.10.26.102";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.101";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.102";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.101";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.101";
+} from "./service-availability.js?v=2026.10.26.102";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.102";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.101";
+} from "./trip-wait.js?v=2026.10.26.102";
+import {
+    scheduledForMs as schedUiMs,
+    formatClock as schedFormatClock,
+    formatWeekdayClock as schedFormatWeekdayClock,
+    formatLongDay as schedFormatLongDay,
+    faltanLabel as schedFaltanLabel,
+    keepWorkingNote as schedKeepWorkingNote,
+    offerBannerHtml as schedOfferBannerHtml,
+    offerChipLabel as schedOfferChipLabel,
+    offerKeepNoteHtml as schedOfferKeepNoteHtml,
+    offerHeadline as schedOfferHeadline,
+    scheduledOfferPush as schedOfferPush,
+    compactCardHtml as schedCompactCardHtml,
+    takeoverHtml as schedTakeoverHtml,
+    warningOnOtherHtml as schedWarningOnOtherHtml,
+    resolveScheduledSurface as schedResolveSurface,
+    shouldAutoOpenScheduledRoute as schedShouldAutoOpen,
+    nearestByScheduledFor as schedNearestByScheduledFor,
+    companionVisibility as schedCompanionVisibility,
+    isLocking as schedIsLocking,
+    ANDROID_NAV as SCHED_ANDROID_NAV
+} from "./scheduled-trip-driver-ui.js?v=2026.10.26.102";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
@@ -217,49 +239,49 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
-} from "./driver-vehicles-v2.js?v=2026.10.26.101";
+} from "./driver-vehicles-v2.js?v=2026.10.26.102";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.101";
+} from "./route-fixed-fares.js?v=2026.10.26.102";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.101";
+} from "./commission-free-day.js?v=2026.10.26.102";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.101";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.101";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.101";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.101";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.101";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.101";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.101";
+} from "./route-conditions.js?v=2026.10.26.102";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.102";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.102";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.102";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.102";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.102";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.102";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.101";
+} from "./demand-heatmap.js?v=2026.10.26.102";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.101";
+} from "./ops-fleet-map.js?v=2026.10.26.102";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.101";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.101";
+} from "./live-trip-keepalive.js?v=2026.10.26.102";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.102";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.101";
+} from "./driver-session.js?v=2026.10.26.102";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -268,7 +290,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.101";
+} from "./session-keepalive.js?v=2026.10.26.102";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -358,32 +380,32 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.101";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.102";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.101";
+} from "./auth-ui.js?v=2026.10.26.102";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.101";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.101";
+} from "./age-verification.js?v=2026.10.26.102";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.102";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.101";
-import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.101";
-import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.101";
+} from "./trip-experience.js?v=2026.10.26.102";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.102";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.102";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.101";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.101";
+} from "./support-tickets.js?v=2026.10.26.102";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.102";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.101";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.101";
-import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.101";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.102";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.102";
+import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.102";
 
 // ==================== CONFIRMACIÓN IN-APP (reemplaza window.confirm nativo) ====================
 // En el APK (Android WebView) el confirm() nativo bloquea el hilo JS y a veces se queda pegado.
@@ -4035,7 +4057,7 @@ if (document.readyState === 'loading') {
         const SCHEDULED_TRIP_PREP_MS = SCHEDULED_TRIP_PREP_MINUTES * 60 * 1000;
         const SCHEDULED_TRIP_LOCK_MINUTES = 30;
         const SCHEDULED_TRIP_LOCK_MS = SCHEDULED_TRIP_LOCK_MINUTES * 60 * 1000;
-        const SCHEDULED_TRIP_LOCK_MSG = 'Ya estás a media hora de tu viaje programado. Ve al punto de recogida; no puedes tomar otro viaje.';
+        const SCHEDULED_TRIP_LOCK_MSG = 'Ya es media hora antes de tu viaje programado. Andá al punto de recogida; no podés tomar otro viaje.';
 
         function getScheduledTripMs(trip) {
             if (!trip?.scheduledFor) return 0;
@@ -4092,7 +4114,7 @@ if (document.readyState === 'loading') {
             if (shown) return;
             try { sessionStorage.setItem(`sched-move-${trip.id}`, '1'); } catch (_) {}
             window.showToast?.(
-                'Salí ahora al punto de recogida. Ya no puedes tomar otros viajes.',
+                'Ya es media hora antes. Andá al punto de recogida. Ya no podés tomar otros viajes.',
                 'warning'
             );
         }
@@ -4127,36 +4149,20 @@ if (document.readyState === 'loading') {
             });
         }
 
-        /** Banner visible para conductores: programado + día + hora (no enterrado en “detalles”). */
+        /** Banner visible para conductores: día y hora, y hasta cuándo puede seguir trabajando. */
         function buildDriverScheduledBannerHtml(trip) {
-            const scheduledMs = getScheduledTripMs(trip);
-            if (!scheduledMs) return '';
-            const when = formatScheduledTripWhen(trip);
-            const mins = getScheduledTripMinutesUntil(trip);
-            let until = '';
-            if (mins != null && mins > 0) {
-                if (mins < 60) until = ` · en ${mins} min`;
-                else {
-                    const h = Math.floor(mins / 60);
-                    const m = mins % 60;
-                    until = m ? ` · en ${h} h ${m} min` : ` · en ${h} h`;
-                }
-            } else if (mins === 0) {
-                until = ' · ya es la hora de recogida';
-            }
-            return `
-                <div class="driver-offer-sched-banner" role="status">
-                    <p class="driver-offer-sched-banner-title"><i class="fas fa-calendar-check"></i> VIAJE PROGRAMADO</p>
-                    <p class="driver-offer-sched-banner-when">${when}${until}</p>
-                    <p class="driver-offer-sched-banner-sub">${isScheduledTripLockingDriver(trip)
-                        ? 'Ya no puedes tomar otros viajes. Salí ahora al punto de recogida.'
-                        : 'No es inmediato: recoge al pasajero a esa hora (puedes aceptar/negociar ya). A media hora se bloquean otros viajes.'}</p>
-                </div>`;
+            if (!getScheduledTripMs(trip)) return '';
+            return schedOfferBannerHtml(trip, {
+                now: Date.now(),
+                locking: isScheduledTripLockingDriver(trip)
+            });
         }
 
         function getDriverScheduledBadgeHtml(trip) {
-            if (!getScheduledTripMs(trip)) return '';
-            return `<span class="driver-offer-sched-badge" title="${formatScheduledTripWhen(trip)}"><i class="fas fa-calendar-alt"></i> Programado</span>`;
+            const clock = schedOfferChipLabel(trip);
+            if (!clock) return '';
+            const title = schedFormatWeekdayClock(schedUiMs(trip));
+            return `<span class="driver-offer-sched-badge" title="${escapeViewerText(title)}"><i class="fas fa-calendar-alt"></i> Programado · ${escapeViewerText(clock)}</span>`;
         }
 
         window.activateScheduledTripIfDue = async (tripId) => {
@@ -6704,9 +6710,10 @@ if (document.readyState === 'loading') {
                 : '';
             const payLabel = t.paymentMethod === 'saldo' ? 'Saldo' : 'Efectivo';
             const svcCopy = getTripOfferNotificationCopy(t.serviceType || '');
-            // Mismo formato fuerte que staff: 🆕 + servicio
-            const title = `🆕 ${svcCopy.staff || svcCopy.short || 'Viaje'} en tu ciudad`;
-            const body = `${t.price || 'Nueva solicitud'}${dist} · ${payLabel} · ${t.origin || ''}`.slice(0, 160);
+            const schedPush = getScheduledTripMs(t) ? schedOfferPush(t, { kind: 'city' }) : null;
+            // Mismo formato fuerte que staff: 🆕 + servicio. Programado: hora y que puede seguir.
+            const title = schedPush?.title || `🆕 ${svcCopy.staff || svcCopy.short || 'Viaje'} en tu ciudad`;
+            const body = (schedPush?.body || `${t.price || 'Nueva solicitud'}${dist} · ${payLabel} · ${t.origin || ''}`).slice(0, 180);
             const toastTitle = `${title}: ${t.price || ''}${dist}`;
             if (!inBackground) window.showToast(toastTitle, 'warning');
 
@@ -11288,8 +11295,8 @@ if (document.readyState === 'loading') {
             if (!mainEl || !subEl) return;
 
             if (onScheduledLock) {
-                mainEl.textContent = 'Ve al punto de recogida';
-                subEl.textContent = 'Viaje programado en menos de 30 min · no puedes tomar otros viajes';
+                mainEl.textContent = 'Ofertas en pausa';
+                subEl.textContent = 'Ya es media hora antes · no podés tomar otros viajes';
             } else if (onActiveTrip) {
                 mainEl.textContent = 'Viaje en curso';
                 subEl.textContent = 'Las nuevas ofertas aparecen arriba de la lista';
@@ -11320,7 +11327,7 @@ if (document.readyState === 'loading') {
             const titleEl = document.getElementById('driver-list-title');
             if (titleEl) {
                 if (onScheduledLock) {
-                    titleEl.textContent = 'Viaje programado — ve al origen';
+                    titleEl.textContent = 'Viaje programado — andá al origen';
                 } else if (onActiveTrip) {
                     titleEl.textContent = 'Cola de viajes';
                 } else if (count > 0) {
@@ -11416,7 +11423,7 @@ if (document.readyState === 'loading') {
                 ? `<span class="trip-queue-badge">${longWait ? 'Espera más' : (queueIndex === 1 ? 'Más cercano' : '#' + queueIndex)}</span>`
                 : '';
             // «Pidió hace X min» en vivo (programados: hora programada)
-            const waitChip = tripWaitChipHtml(t, { scheduledLabel: getScheduledTripMs(t) ? formatScheduledTripWhen(t) : '' });
+            const waitChip = tripWaitChipHtml(t, { scheduledLabel: getScheduledTripMs(t) ? schedOfferChipLabel(t) : '' });
             const distBadge = dist != null
                 ? `<span class="driver-offer-direct-badge"><i class="fas fa-location-arrow"></i> ${parseFloat(dist).toFixed(1)} km</span>`
                 : '';
@@ -11487,13 +11494,11 @@ if (document.readyState === 'loading') {
             }
             // Programado: también en detalles (el banner grande va arriba de la tarjeta)
             if (getScheduledTripMs(t)) {
-                const scheduledMins = getScheduledTripMinutesUntil(t);
-                const until = scheduledMins != null && scheduledMins > 0
-                    ? ` · en ${scheduledMins} min`
-                    : '';
+                const schedMs = getScheduledTripMs(t);
                 detailParts.push(
                     `<p class="driver-offer-detail-line" style="color:#b45309;font-weight:900;">`
-                    + `<i class="fas fa-calendar-alt"></i> <b>PROGRAMADO</b> · ${formatScheduledTripWhen(t)}${until}</p>`
+                    + `<i class="fas fa-calendar-alt"></i> <b>${escapeViewerText(schedOfferHeadline(schedMs))}</b>`
+                    + ` · ${escapeViewerText(schedFaltanLabel(schedMs, Date.now()))}</p>`
                 );
             }
             if (driverBusy) {
@@ -11652,6 +11657,7 @@ if (document.readyState === 'loading') {
                         ${isUnverified ? `<span class="hr-ofr-chip hr-ofr-chip--warn"><i class="fas fa-exclamation-triangle"></i> Sin verificar</span>` : ''}
                         ${noAccountClientBadgeHtml(t)}
                     </div>
+                    ${getScheduledTripMs(t) ? schedOfferKeepNoteHtml(t, { locking: isScheduledTripLockingDriver(t) }) : ''}
                     ${isStoreOrderTrip(t) ? `<div class="hr-ofr-chips">${storeOfferBadgesHtml(t)}</div>${storeExclusiveTurnBadgeHtml({ ...t, id: tripId })}${window.hrPedidoDoble?.offerBadgeHtml?.({ id: tripId, ...t }) || ''}` : ''}
                     <div class="hr-ofr-route">
                         <div class="hr-ofr-row hr-ofr-row--pickup">
@@ -12358,7 +12364,7 @@ if (document.readyState === 'loading') {
                 const isSched = !!getScheduledTripMs(trip);
                 if (titleEl) {
                     titleEl.textContent = isSched
-                        ? '📅 Viaje programado'
+                        ? schedOfferHeadline(getScheduledTripMs(trip))
                         : (svcCopy?.title || 'Nueva solicitud');
                 }
                 if (subEl) {
@@ -12367,12 +12373,11 @@ if (document.readyState === 'loading') {
                         ? ` · ${parseFloat(trip.offerDistanceKm).toFixed(1)} km a recogida`
                         : '';
                     if (isSched) {
-                        const when = formatScheduledTripWhen(trip);
-                        const mins = getScheduledTripMinutesUntil(trip);
-                        const until = mins != null && mins > 0 ? ` · en ${mins} min` : '';
+                        const schedMs = getScheduledTripMs(trip);
+                        const dayLine = `${schedFormatLongDay(schedMs)} · ${schedFaltanLabel(schedMs, Date.now())} · ${pay}${dist}`;
                         subEl.textContent = onActiveTrip
-                            ? `Cola · recogida ${when}${until} · ${pay}${dist}`
-                            : `Recogida: ${when}${until} · ${pay}${dist}`;
+                            ? `Queda en tu panel. Seguí hasta las ${schedFormatClock(schedMs - SCHEDULED_TRIP_LOCK_MS)}. ${dayLine}`
+                            : dayLine;
                     } else {
                         const pdOk = onActiveTrip && !!window.hrPedidoDoble?.canPair?.(activeTrip, trip);
                         subEl.textContent = pdOk
@@ -12498,7 +12503,10 @@ if (document.readyState === 'loading') {
                 const testDriverMode = isTestDriverProfile();
                 if (window._guestFollowTripId) return;
                 const onActiveTrip = activeTrip && CONFIRMED_TRIP_STATUSES.includes(activeTrip.status);
-                const lockTrip = findScheduledLockTripForDriver(snap.docs, currentUser.uid);
+                const lockFromSnap = findScheduledLockTripForDriver(snap.docs, currentUser.uid);
+                const rememberedLock = window._driverScheduledLockTrip;
+                const lockTrip = lockFromSnap
+                    || (rememberedLock && isScheduledTripLockingDriver(rememberedLock, currentUser.uid) ? rememberedLock : null);
                 window._driverScheduledLockTrip = lockTrip || null;
                 if (lockTrip) maybeNotifyDriverScheduledMove(lockTrip);
 
@@ -12670,13 +12678,12 @@ if (document.readyState === 'loading') {
                         offerBanner.classList.add('hidden');
                     }
                     renderDriverRadarStatus({ count: 0, onScheduledLock: true });
-                    const when = formatScheduledTripWhen(lockTrip);
-                    const mins = getScheduledTripMinutesUntil(lockTrip);
-                    const until = mins > 0 ? `en ${mins} min` : 'ya es la hora';
+                    const lockName = String(lockTrip.clientName || 'el pasajero').trim().split(/\s+/)[0] || 'el pasajero';
+                    const lockClock = schedFormatClock(getScheduledTripMs(lockTrip));
                     container.innerHTML = `<div class="py-6 text-center px-3">
-                        <p class="text-sm font-black text-amber-800">Salí al punto de recogida</p>
-                        <p class="text-[11px] text-amber-700 mt-1">Viaje programado ${when || ''} · ${until}.</p>
-                        <p class="text-[11px] text-amber-900 font-bold mt-2">Ya no puedes tomar otros viajes.</p>
+                        <p class="text-sm font-black text-amber-800">Ya es media hora antes</p>
+                        <p class="text-[11px] text-amber-700 mt-1">Andá por ${escapeViewerText(lockName)}${lockClock ? ` · ${escapeViewerText(lockClock)}` : ''}</p>
+                        <p class="text-[11px] text-amber-900 font-bold mt-2">Ofertas en pausa. No podés tomar otro viaje.</p>
                     </div>`;
                     return;
                 }
@@ -13163,7 +13170,7 @@ if (document.readyState === 'loading') {
 
                 if (reserveScheduled) {
                     window.showToast(
-                        `Viaje programado reservado para ${formatScheduledTripWhen(optimisticTrip)}. Te avisaremos 1 h, 30, 10 y 5 min antes. Puedes iniciar antes con el botón.`,
+                        `Viaje programado reservado para ${schedFormatWeekdayClock(getScheduledTripMs(optimisticTrip))}. ${schedKeepWorkingNote(getScheduledTripMs(optimisticTrip))} Podés iniciar antes con el botón.`,
                         'success'
                     );
                     window.presentScheduledReservedUi?.(optimisticTrip, { role: 'driver' });
@@ -32980,6 +32987,11 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 && trip.driverId === uid);
             const driverView = document.getElementById('driver-view');
             const atp = document.getElementById('active-trip-panel');
+            if (live && document.body.classList.contains('scheduled-takeover') && window._hrSchedTakeoverDismissed !== trip?.id) {
+                atp?.classList.add('hidden');
+                document.getElementById('scheduled-trip-card')?.classList.remove('hidden');
+                return;
+            }
             if (live) {
                 document.body.classList.add('trip-active', 'driver-mode');
                 document.body.classList.remove('is-searching');
@@ -33024,11 +33036,22 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         /** v.99 · Quitar la tarjeta del viaje programado (cancelado / terminado) y volver al inicio. */
         function clearScheduledReservedUi() {
             const wasOn = document.body.classList.contains('scheduled-reserved-active')
+                || document.body.classList.contains('driver-sched-companion')
+                || !document.getElementById('scheduled-companion')?.classList.contains('hidden')
                 || !document.getElementById('scheduled-trip-card')?.classList.contains('hidden');
             if (!wasOn) return false;
-            document.body.classList.remove('scheduled-reserved-active');
+            document.body.classList.remove('scheduled-reserved-active', 'scheduled-takeover');
             window._scheduledReservedUiSig = null;
             document.getElementById('scheduled-trip-card')?.classList.add('hidden');
+            const companion = document.getElementById('scheduled-companion');
+            if (companion) {
+                companion.classList.add('hidden');
+                companion.setAttribute('hidden', '');
+                companion.innerHTML = '';
+                delete companion.dataset.html;
+                companion.style.bottom = '';
+            }
+            document.body.classList.remove('driver-sched-companion');
             try { window.clearRoutePolylines?.(); } catch (_) {}
             if (window.userProfile?.role !== 'driver') {
                 ['passenger-booking-route', 'passenger-booking-advanced', 'favorites-bar']
@@ -35021,6 +35044,13 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             if (candidates.length === 0) return null;
 
+            if (role === 'driver') {
+                const surface = schedResolveSurface(candidates, { previousId: activeTrip?.id, now: Date.now() });
+                if (surface.foreground && ['accepted', 'in_progress'].includes(surface.foreground.status)) {
+                    return surface.foreground;
+                }
+            }
+
             candidates.sort((a, b) => {
                 const diff = (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0);
                 if (diff !== 0) return diff;
@@ -36037,8 +36067,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 : (data.driverName || 'Por asignar');
             const pin = String(data.pin || '');
             const note = isDriverSide
-                ? (lockNow ? 'Ya no podés tomar otros viajes. Salí ahora al punto de recogida.'
-                    : 'Te avisamos 1 h, 30, 10 y 5 min antes. A media hora se activa solo.')
+                ? (lockNow
+                    ? 'Ya es media hora antes. Andá al punto de recogida. No podés tomar otro viaje.'
+                    : schedKeepWorkingNote(getScheduledTripMs(data)))
                 : 'A media hora el viaje se activa solo. El conductor puede iniciar antes.';
             return `
                 <div class="hr-sched-head">
@@ -36061,6 +36092,175 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 <p class="hr-sched-note"><i class="fas fa-info-circle"></i> ${esc(note)}</p>`;
         }
 
+        function driverTripBag(extra) {
+            const bag = [];
+            const push = (t) => {
+                if (!t?.id || bag.some((x) => x.id === t.id)) return;
+                bag.push(t);
+            };
+            push(activeTrip);
+            push(window.currentActiveTripData);
+            (window._hrDriverTrips || []).forEach(push);
+            push(extra);
+            return bag;
+        }
+
+        function openScheduledPickupMaps(trip) {
+            if (!trip) return;
+            const lat = Number(trip.originLat);
+            const lng = Number(trip.originLng);
+            const dest = Number.isFinite(lat) && Number.isFinite(lng)
+                ? `${lat},${lng}`
+                : encodeURIComponent(String(trip.origin || '').trim());
+            if (!dest) {
+                window.showToast?.('No hay punto de recogida para abrir en el mapa.', 'warning');
+                return;
+            }
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank', 'noopener');
+        }
+
+        function placeScheduledCompanion() {
+            const el = document.getElementById('scheduled-companion');
+            if (!el || el.classList.contains('hidden')) return;
+            const gap = SCHED_ANDROID_NAV.gapPx;
+            let safe = 0;
+            try {
+                safe = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom')) || 0;
+            } catch (_) {}
+            let nav = Math.max(safe, 12);
+            if (document.body.classList.contains('android-3btn')) nav = Math.max(safe, SCHED_ANDROID_NAV.threeButtonPx);
+            else if (document.body.classList.contains('android-gesture')) nav = Math.max(safe, SCHED_ANDROID_NAV.gesturePx);
+            let above = 0;
+            const panel = document.getElementById('control-panel');
+            if (panel && document.body.classList.contains('trip-active')) {
+                const rect = panel.getBoundingClientRect();
+                if (rect.height > 8 && rect.top < window.innerHeight) {
+                    above = Math.max(0, window.innerHeight - rect.top);
+                }
+            }
+            el.style.bottom = `${Math.max(above, nav) + gap}px`;
+        }
+
+        function bindScheduledCompanionClicks(root) {
+            if (!root || root.dataset.schedBound === '1') return;
+            root.dataset.schedBound = '1';
+            root.addEventListener('click', (e) => {
+                const go = e.target.closest('[data-scheduled-go]');
+                const maps = e.target.closest('[data-scheduled-maps]');
+                if (!go && !maps) return;
+                e.preventDefault();
+                const surface = window._hrSchedSurface;
+                const trip = surface?.subject || window.currentActiveTripData;
+                if (maps) {
+                    if (surface?.mode === 'warning') openScheduledPickupMaps(trip);
+                    else window.openDriverRouteInGoogleMaps?.();
+                    return;
+                }
+                if (surface?.mode === 'warning') {
+                    window.showToast?.('Terminalo primero. Al calificar, la app abre sola la ruta.', 'warning');
+                    return;
+                }
+                if (!trip?.id) return;
+                window._hrSchedTakeoverDismissed = trip.id;
+                if (trip.status === 'scheduled') {
+                    window.startScheduledTripNow?.(trip.id, go);
+                    return;
+                }
+                window.presentTripAcceptedUi?.(trip, { role: 'driver', skipScheduledTakeover: true, silentToast: true });
+                window.navigateDriverRouteInApp?.({ silent: true });
+            });
+        }
+
+        if (!window._hrSchedCompanionResize) {
+            window._hrSchedCompanionResize = true;
+            window.addEventListener('resize', () => { try { placeScheduledCompanion(); } catch (_) {} });
+        }
+
+        /** Faja fija: no la esconde el viaje aceptado. Va arriba de los controles y de la barra de Android. */
+        window.syncDriverScheduledCompanion = (surface) => {
+            const el = document.getElementById('scheduled-companion');
+            if (!el) return;
+            const mode = surface?.mode;
+            const vis = schedCompanionVisibility(mode);
+            if (!vis.showCompanion || !surface?.subject || window.userProfile?.role !== 'driver') {
+                el.classList.add('hidden');
+                el.setAttribute('hidden', '');
+                el.innerHTML = '';
+                delete el.dataset.html;
+                el.style.bottom = '';
+                document.body.classList.remove('driver-sched-companion');
+                return;
+            }
+            const html = mode === 'warning'
+                ? schedWarningOnOtherHtml(surface.subject)
+                : schedCompactCardHtml(surface.subject);
+            if (el.dataset.html !== html) {
+                el.innerHTML = html;
+                el.dataset.html = html;
+            }
+            el.classList.remove('hidden');
+            el.removeAttribute('hidden');
+            document.body.classList.add('driver-sched-companion');
+            window._hrSchedSurface = surface;
+            window._hrSchedPreviousMode = mode;
+            if (mode === 'warning') {
+                window._hrOpenScheduledRouteAfterOther = surface.subject.id;
+                window._driverScheduledLockTrip = surface.subject;
+            }
+            bindScheduledCompanionClicks(el);
+            placeScheduledCompanion();
+            setTimeout(() => { try { placeScheduledCompanion(); } catch (_) {} }, 380);
+        };
+
+        /** Panel de los 30 min: el programado toma la pantalla (conductor libre). */
+        window.presentScheduledTakeover = (data) => {
+            if (!data?.id || window.userProfile?.role !== 'driver') return;
+            if (window._hrSchedTakeoverDismissed === data.id) return;
+            const takeoverSig = `${data.id}|${data.status || ''}|${data.scheduledFor || ''}|${data.price || ''}`;
+            if (window._hrTakeoverSig === takeoverSig && document.body.classList.contains('scheduled-takeover')) return;
+            window._hrTakeoverSig = takeoverSig;
+            activeTrip = { id: data.id, ...data, status: data.status || 'scheduled' };
+            window.currentActiveTripData = activeTrip;
+            window._driverScheduledLockTrip = data;
+            window._hrSchedSurface = { mode: 'takeover', foreground: activeTrip, subject: data };
+            document.body.classList.add('scheduled-takeover', 'scheduled-reserved-active', 'driver-mode');
+            document.body.classList.remove('driver-sched-companion');
+            const companion = document.getElementById('scheduled-companion');
+            if (companion) {
+                companion.classList.add('hidden');
+                companion.setAttribute('hidden', '');
+                companion.innerHTML = '';
+                delete companion.dataset.html;
+            }
+            const card = document.getElementById('scheduled-trip-card');
+            const detailEl = document.getElementById('scheduled-trip-detail');
+            const actionsEl = document.getElementById('scheduled-trip-actions');
+            const whenEl = document.getElementById('scheduled-trip-when');
+            card?.classList.remove('hidden');
+            card?.classList.add('hr-sched', 'hr-sched--takeover');
+            if (whenEl) whenEl.textContent = '';
+            if (detailEl) detailEl.innerHTML = schedTakeoverHtml(data, { stillOnOther: false });
+            if (actionsEl) actionsEl.innerHTML = '';
+            bindScheduledCompanionClicks(card);
+            document.getElementById('driver-view')?.classList.remove('hidden');
+            document.getElementById('client-view')?.classList.add('hidden');
+            document.getElementById('active-trip-panel')?.classList.add('hidden');
+            try {
+                document.body.classList.remove('panel-minimized');
+                document.getElementById('control-panel')?.classList.remove('panel-collapsed');
+                window.showControlPanel?.();
+            } catch (_) {}
+            try {
+                if (data.originLat != null && data.originLng != null) {
+                    window.placePickupMarker?.({ lat: data.originLat, lng: data.originLng }, 'Origen');
+                }
+                if (data.destinationLat != null && data.destinationLng != null) {
+                    window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
+                }
+                if (!window.isDriverNavigating?.()) window.selectDriverOfferForPreview?.(data.id, data);
+            } catch (_) {}
+        };
+
         window.presentScheduledReservedUi = (data, options = {}) => {
             if (!data?.id) return;
             const role = options.role
@@ -36069,6 +36269,18 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const isDriverSide = role === 'driver' || data.driverId === currentUser?.uid;
             const when = formatScheduledTripWhen(data);
             const lockNow = isScheduledTripLockingDriver(data, currentUser?.uid);
+            if (isDriverSide && !options.forceFullCard) {
+                const surface = schedResolveSurface(driverTripBag(data), { previousId: activeTrip?.id, now: Date.now() });
+                if (surface.subject?.id === data.id && (surface.mode === 'compact' || surface.mode === 'warning')) {
+                    window._hrSchedSurface = surface;
+                    window.syncDriverScheduledCompanion?.(surface);
+                    return;
+                }
+                if (lockNow && surface.mode === 'takeover' && window._hrSchedTakeoverDismissed !== data.id) {
+                    window.presentScheduledTakeover?.(data);
+                    return;
+                }
+            }
             const uiSig = [
                 data.id,
                 data.status,
@@ -36140,12 +36352,14 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 document.getElementById('driver-view')?.classList.remove('hidden');
                 document.getElementById('client-view')?.classList.add('hidden');
                 // Radar de ofertas: no tapa la tarjeta; se puede seguir viendo debajo
+                card?.classList.toggle('hr-sched--driver', true);
+                document.body.classList.remove('scheduled-takeover');
                 if (detailEl) detailEl.innerHTML = scheduledCardHtml(data, { isDriverSide: true, lockNow });
                 if (actionsEl) {
                     actionsEl.innerHTML = `
                         <button type="button" id="btn-start-scheduled-now" data-trip-id="${data.id}"
                             class="hr-sched-btn hr-sched-btn--go trip-touch-btn">
-                            <i class="fas fa-play"></i> Iniciar viaje programado YA
+                            <i class="fas fa-play"></i> Iniciar ya
                         </button>
                         <button type="button" id="btn-scheduled-nav-map" class="hr-sched-btn hr-sched-btn--sec trip-touch-btn">
                             <i class="fas fa-location-arrow"></i> Ver ruta en el mapa
@@ -36208,6 +36422,22 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         window.presentTripAcceptedUi = (data, options = {}) => {
             if (!data?.id) return;
             const role = options.role || window.userProfile?.role;
+
+            if (role === 'driver' && !options.skipScheduledTakeover) {
+                const surface = window._hrSchedSurface
+                    || schedResolveSurface(driverTripBag(data), { previousId: activeTrip?.id, now: Date.now() });
+                if (surface?.subject && (surface.mode === 'compact' || surface.mode === 'warning') && surface.subject.id !== data.id) {
+                    window.syncDriverScheduledCompanion?.(surface);
+                }
+                if (surface?.mode === 'warning' && surface.subject?.id === data.id && surface.foreground && surface.foreground.id !== data.id) {
+                    window.syncDriverScheduledCompanion?.(surface);
+                    return;
+                }
+                if (surface?.mode === 'takeover' && surface.subject?.id === data.id && data.status !== 'in_progress' && window._hrSchedTakeoverDismissed !== data.id) {
+                    window.presentScheduledTakeover?.(data);
+                    return;
+                }
+            }
 
             // Si sigue programado con conductor, UI de reserva (no en camino aún)
             if (data.status === 'scheduled' && data.driverId && shouldReserveAsScheduledTrip(data)) {
@@ -36289,8 +36519,10 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     if (window.isDriverNavigating?.() && window._driverNavUserKeptOpen) return;
                     window.minimizeDriverPanelForNav?.();
                     window._driverNavPanelAutoMinDone = true;
+                    setTimeout(() => { try { placeScheduledCompanion(); } catch (_) {} }, 1900);
                 }, 1800);
             }
+            if (role === 'driver') window.syncDriverScheduledCompanion?.(window._hrSchedSurface);
             if ((role === 'client' || window.isViewerPassengerOfTrip?.(data)) && (data.clientId === currentUser?.uid || window._guestFollowTripId === data.id)) {
                 activeTrip = { id: data.id, ...(activeTrip || {}), ...data };
                 window.currentActiveTripData = activeTrip;
@@ -37168,17 +37400,27 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     window.presentScheduledReservedUi?.(data, { role: 'driver' });
                 }
                 if (prevStatus === 'scheduled' && data.status === 'accepted' && data.driverId === currentUser.uid) {
-                    window.presentTripAcceptedUi?.(data, { role: 'driver' });
-                    window.showToast?.('Viaje programado activo. Ve al origen del pasajero.', 'success');
-                    try {
-                        if (data.originLat != null && data.originLng != null) {
-                            window.placePickupMarker?.({ lat: data.originLat, lng: data.originLng }, 'Origen');
-                        }
-                        if (data.destinationLat != null && data.destinationLng != null) {
-                            window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
-                        }
-                        window.navigateDriverRouteInApp?.({ silent: true });
-                    } catch (_) {}
+                    const otherLive = window._hrSchedSurface?.mode === 'warning'
+                        && window._hrSchedSurface?.foreground
+                        && window._hrSchedSurface.foreground.id !== data.id;
+                    if (!otherLive) {
+                        window.presentTripAcceptedUi?.(data, { role: 'driver' });
+                        window.showToast?.('Ya es media hora antes. Andá al punto de recogida.', 'success');
+                    } else {
+                        window.syncDriverScheduledCompanion?.(window._hrSchedSurface);
+                        window.showToast?.(`Terminalo primero. Al calificar, la app abre sola la ruta hacia ${String(data.clientName || 'el pasajero').trim().split(/\s+/)[0] || 'el pasajero'}.`, 'warning');
+                    }
+                    if (!otherLive) {
+                        try {
+                            if (data.originLat != null && data.originLng != null) {
+                                window.placePickupMarker?.({ lat: data.originLat, lng: data.originLng }, 'Origen');
+                            }
+                            if (data.destinationLat != null && data.destinationLng != null) {
+                                window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
+                            }
+                            window.navigateDriverRouteInApp?.({ silent: true });
+                        } catch (_) {}
+                    }
                 }
                 if (prevStatus === 'pending' && data.status === 'accepted' && data.driverId === currentUser.uid) {
                     const body = `${data.clientName || 'El pasajero'} confirmó contigo. Navegá en el mapa o abrí Google Maps.`;
@@ -37322,9 +37564,16 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     } catch (_) {}
                 }
                 window.syncDriverChromeForActiveTrip?.();
+                const schedSurfaceNow = window._hrSchedSurface;
+                const takeoverNow = window.userProfile?.role === 'driver'
+                    && schedSurfaceNow?.mode === 'takeover'
+                    && schedSurfaceNow.subject?.id === data.id
+                    && data.status !== 'in_progress'
+                    && window._hrSchedTakeoverDismissed !== data.id;
                 const activeP = document.getElementById('active-trip-panel');
                 if (activeP) {
-                    activeP.classList.remove('hidden');
+                    if (takeoverNow) activeP.classList.add('hidden');
+                    else activeP.classList.remove('hidden');
                     // No quitar panel-minimized del sheet en cada update (impedía bajar el panel)
                     // tap superior para minimizar durante ruta (conductor)
                     if (!activeP.dataset.minBound) {
@@ -37340,11 +37589,12 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
                 document.getElementById('client-view')?.classList.add('hidden');
                 document.getElementById('trip-panel-setup')?.classList.add('hidden');
-                document.getElementById('driver-view')?.classList.add('hidden');
+                if (!takeoverNow) document.getElementById('driver-view')?.classList.add('hidden');
                 window.syncDriverIdleVsActiveTripUi?.();
                 document.getElementById('searching-state')?.classList.add('hidden');
                 document.getElementById('fare-card')?.classList.add('hidden');
-                document.getElementById('scheduled-trip-card')?.classList.add('hidden');
+                if (!takeoverNow) document.getElementById('scheduled-trip-card')?.classList.add('hidden');
+                else window.presentScheduledTakeover?.(data);
                 document.getElementById('trip-viewers-panel')?.classList.add('hidden');
                 window.syncPassengerBookingForm?.(data);
 
@@ -37757,19 +38007,49 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         window.hrShowDriverReservedScheduled = async () => {
             try {
                 if (!currentUser || window.userProfile?.role !== 'driver') return;
-                if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status)) return;
                 const snap = await getDocs(query(
                     collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
                     where('driverId', '==', currentUser.uid)
                 ));
                 const mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-                    .filter((t) => t.status === 'scheduled' && !isDemandSimulationTrip(t));
-                if (!mine.length) return;
-                if (snap.docs.some((d) => ['accepted', 'in_progress'].includes(d.data().status))) return;
-                mine.sort((a, b) => Date.parse(a.scheduledFor || 0) - Date.parse(b.scheduledFor || 0));
-                const st = mine[0];
-                if (isScheduledTripDueForActivation(st)) window.activateScheduledTripIfDue?.(st.id).catch(() => {});
-                else { window._scheduledReservedUiSig = null; window.presentScheduledReservedUi?.(st, { role: 'driver' }); }
+                    .filter((t) => !isDemandSimulationTrip(t));
+                window._hrDriverTrips = mine;
+                const endedId = window._hrLastEndedTripId || null;
+                const surface = schedResolveSurface(mine, {
+                    previousId: activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status) ? activeTrip.id : null,
+                    now: Date.now()
+                });
+                window._hrSchedSurface = surface;
+                if (surface.mode === 'compact' || surface.mode === 'warning') {
+                    window.syncDriverScheduledCompanion?.(surface);
+                    return;
+                }
+                if (surface.mode !== 'idle' && surface.mode !== 'takeover') return;
+                if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status) && activeTrip.id !== surface.subject?.id) {
+                    return;
+                }
+                const st = surface.subject || schedNearestByScheduledFor(mine);
+                if (!st) return;
+                const openRoute = schedShouldAutoOpen({
+                    previousMode: window._hrSchedPreviousMode,
+                    surface,
+                    endedId
+                });
+                if (st.status === 'scheduled' && isScheduledTripDueForActivation(st)) {
+                    window.activateScheduledTripIfDue?.(st.id).catch(() => {});
+                }
+                window._scheduledReservedUiSig = null;
+                if (surface.mode === 'takeover') {
+                    window._hrSchedTakeoverDismissed = null;
+                    window.presentScheduledTakeover?.(st);
+                } else {
+                    window.presentScheduledReservedUi?.(st, { role: 'driver' });
+                }
+                if (openRoute) {
+                    window._hrSchedPreviousMode = null;
+                    window._hrLastEndedTripId = null;
+                    setTimeout(() => { try { window.navigateDriverRouteInApp?.({ silent: true }); } catch (_) {} }, 400);
+                }
             } catch (e) { console.warn('hrShowDriverReservedScheduled', e); }
         };
 
@@ -37847,23 +38127,30 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         }
                     }
                 } else {
-                    // Conductor: reservas programadas mías
-                    const myScheduled = snap.docs
+                    // Conductor: el programado más cercano, aunque haya otro viaje en curso.
+                    const mine = snap.docs
                         .map((d) => ({ id: d.id, ...d.data() }))
-                        .filter((t) => t.status === 'scheduled' && t.driverId === currentUser.uid && !isDemandSimulationTrip(t));
-                    if (myScheduled.length) {
-                        const st = sortTripsByNewest(myScheduled)[0];
-                        const lockMine = findScheduledLockTripForDriver(
-                            snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-                            currentUser.uid
-                        );
-                        if (lockMine) {
-                            window._driverScheduledLockTrip = lockMine;
-                            maybeNotifyDriverScheduledMove(lockMine);
-                        }
-                        if (isScheduledTripDueForActivation(st)) {
+                        .filter((t) => t.driverId === currentUser.uid && !isDemandSimulationTrip(t));
+                    window._hrDriverTrips = mine;
+                    const surface = schedResolveSurface(mine, { previousId: activeTrip?.id, now: Date.now() });
+                    window._hrSchedSurface = surface;
+                    if (surface.mode === 'compact' || surface.mode === 'warning') {
+                        window.syncDriverScheduledCompanion?.(surface);
+                    } else if (surface.mode !== 'takeover') {
+                        window.syncDriverScheduledCompanion?.(null);
+                    }
+                    const st = surface.subject;
+                    if (st && (surface.mode === 'warning' || surface.mode === 'takeover')) {
+                        window._driverScheduledLockTrip = st;
+                        maybeNotifyDriverScheduledMove(st);
+                    }
+                    const onOther = surface.mode === 'compact' || surface.mode === 'warning';
+                    if (st && !onOther && (surface.mode === 'idle' || surface.mode === 'takeover')) {
+                        if (st.status === 'scheduled' && isScheduledTripDueForActivation(st)) {
                             window.activateScheduledTripIfDue?.(st.id).catch(() => {});
-                        } else if (!activeTrip || activeTrip.id === st.id || ['scheduled', 'completed', 'cancelled'].includes(activeTrip.status)) {
+                        } else if (surface.mode === 'takeover' && window._hrSchedTakeoverDismissed !== st.id) {
+                            window.presentScheduledTakeover?.(st);
+                        } else if (surface.mode === 'idle' && (!activeTrip || activeTrip.id === st.id || ['scheduled', 'completed', 'cancelled'].includes(activeTrip.status))) {
                             window.presentScheduledReservedUi?.(st, { role: 'driver' });
                         }
                     }
@@ -43412,6 +43699,7 @@ window.cancelSetupAndLogout = () => {
                     toastMsg += ' Tienes otro pasajero en cola — califica para cargar la siguiente ruta.';
                 }
                 window.showToast(toastMsg, "success");
+                window._hrLastEndedTripId = activeTrip?.id || window._hrLastEndedTripId || null;
                 setTimeout(() => window.hrShowDriverReservedScheduled?.(), 4000);
                 scheduleDriverEarningsRefresh();
                 const cancelSurveyEl = document.getElementById('cancellation-survey-screen');
@@ -44117,6 +44405,9 @@ window.cancelSetupAndLogout = () => {
 
                     resetAfterTripEnds();
                     clearStoredClientTripId();
+                    if (window.userProfile?.role === 'driver') {
+                        setTimeout(() => window.hrShowDriverReservedScheduled?.(), 350);
+                    }
 
                     // Limpiar UI de viaje
                     const atp = document.getElementById('active-trip-panel');
