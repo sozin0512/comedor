@@ -687,8 +687,8 @@ function applyMode(mode) {
         setServicePickerFilter(allowed);
         // Expandir panel de control
         window.showControlPanel?.();
-        // Flete y grúa siguen abriendo «Más opciones». El envío usa sus tarjetas.
-        if (['freight', 'tow'].includes(mode)) {
+        // Flete muestra sus datos en la hoja. Envío usa el asistente.
+        if (mode === 'freight') {
             window.expandTripAdvancedPanel?.();
         }
     } else {

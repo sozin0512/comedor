@@ -5437,8 +5437,28 @@
         }
 
         .trip-advanced-body {
-            padding: 0 0.85rem 0.85rem;
-            border-top: 1px solid #f1f5f9;
+            padding: 0.75rem 0.85rem 0.85rem;
+            border-top: none;
+        }
+
+        /* El acordeón «2 Más opciones» no se muestra, ni si quedara markup viejo. */
+        #trip-advanced-toggle {
+            display: none !important;
+        }
+
+        /* Hoja de Viaje: sin flete/envío/grúa no queda una tarjeta vacía ni un número 2. */
+        #passenger-booking-advanced:not(:has(#delivery-details-panel:not(.hidden))):not(:has(#freight-details-panel:not(.hidden))):not(:has(#tow-details-panel:not(.hidden))) {
+            display: none !important;
+        }
+
+        #trip-advanced-body:not(:has(#freight-details-panel:not(.hidden))):not(:has(#tow-details-panel:not(.hidden))) {
+            display: none;
+        }
+
+        #passenger-booking-when #trip-options-panel {
+            margin-top: 0.65rem;
+            padding-top: 0.65rem;
+            border-top: 1px solid #e2e8f0;
         }
 
         .trip-advanced-block {
@@ -10142,6 +10162,9 @@
         }
 
         html[data-theme="dark"] .trip-advanced-body {
+            border-top-color: var(--dm-border);
+        }
+        html[data-theme="dark"] #passenger-booking-when #trip-options-panel {
             border-top-color: var(--dm-border);
         }
         html[data-theme="dark"] .dw-card {

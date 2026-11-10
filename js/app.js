@@ -149,6 +149,7 @@ import {
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
 } from "./service-types.js?v=2026.10.26.100";
+import { applyTripSheetAdvancedVisibility } from "./trip-sheet-advanced.mjs?v=2026.10.26.100";
 import {
     bookingPrimaryAction,
     serviceStepCopy,
@@ -7436,16 +7437,12 @@ if (document.readyState === 'loading') {
                 motoBanner.classList.toggle('hidden', window.currentServiceType !== 'moto');
             }
 
-            const deliveryPanel = document.getElementById('delivery-details-panel');
-            if (deliveryPanel) {
-                const isDelivery = window.currentServiceType === 'delivery';
-                deliveryPanel.classList.toggle('hidden', !isDelivery);
-                if (isDelivery) {
-                    try { window.syncDeliveryWizard?.(); } catch (_) {}
-                }
-                // Tiendas virtuales viven en sección propia (no dentro de Envíos)
-                try { window.onMerchantAuthReady?.(); } catch (_) {}
+            applyTripSheetAdvancedVisibility(document, window.currentServiceType);
+            if (window.currentServiceType === 'delivery') {
+                try { window.syncDeliveryWizard?.(); } catch (_) {}
             }
+            // Tiendas virtuales viven en sección propia (no dentro de Envíos)
+            try { window.onMerchantAuthReady?.(); } catch (_) {}
 
             const destMapBtn = document.getElementById('btn-dest-map');
             if (destMapBtn) {
@@ -7456,11 +7453,8 @@ if (document.readyState === 'loading') {
 
             syncExtraStopsAvailabilityForService();
 
-            const freightPanel = document.getElementById('freight-details-panel');
-            if (freightPanel) {
-                const isFreight = isFreightService(window.currentServiceType);
-                freightPanel.classList.toggle('hidden', !isFreight);
-                if (isFreight) window.expandTripAdvancedPanel?.();
+            if (isFreightService(window.currentServiceType) || isTowService(window.currentServiceType)) {
+                window.expandTripAdvancedPanel?.();
             }
 
             // If switching to delivery/flete while hourly, force turn off hourly
@@ -40162,25 +40156,19 @@ window.cancelSetupAndLogout = () => {
             });
         };
 
-        window.expandTripAdvancedPanel = (open = true) => {
-            const body = document.getElementById('trip-advanced-body');
-            const toggle = document.getElementById('trip-advanced-toggle');
-            if (!body || !toggle) return;
-            body.classList.toggle('hidden', !open);
-            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            toggle.classList.toggle('is-open', open);
+        window.expandTripAdvancedPanel = () => {
+            // El acordeón «Más opciones» se quitó. El cuerpo (flete) queda visible.
+            document.getElementById('trip-advanced-body')?.classList.remove('hidden');
+            const dead = document.getElementById('trip-advanced-toggle');
+            if (dead) {
+                dead.classList.add('hidden');
+                dead.setAttribute('hidden', '');
+                dead.setAttribute('aria-expanded', 'false');
+            }
         };
 
         window.initTripPanelLayout = () => {
-            const toggle = document.getElementById('trip-advanced-toggle');
-            if (toggle && !toggle.dataset.bound) {
-                toggle.dataset.bound = '1';
-                toggle.addEventListener('click', () => {
-                    const body = document.getElementById('trip-advanced-body');
-                    if (!body) return;
-                    window.expandTripAdvancedPanel(body.classList.contains('hidden'));
-                });
-            }
+            window.expandTripAdvancedPanel?.();
         };
 
         window.initTripExperienceUI = () => {
@@ -41334,30 +41322,20 @@ window.cancelSetupAndLogout = () => {
         }
 
         window.updateHourlyOneHourAlert = () => {
-            const toggle = document.getElementById('trip-advanced-toggle');
-            if (!toggle) return;
-            const badge = toggle.querySelector('.trip-step-badge');
-            const left = toggle.querySelector('.trip-advanced-toggle-left');
-            if (!badge || !left) return;
-
+            const host = document.getElementById('hourly-options');
+            if (!host) return;
             const isOneHour = window.currentBookingMode === 'hourly' && (window.currentReservedHours || 1) === 1;
-
-            // Remove previous alert
-            const existingAlert = left.querySelector('.hourly-1h-alert');
-            if (existingAlert) existingAlert.remove();
-
-            if (isOneHour) {
-                badge.innerHTML = '2 <i class="fas fa-exclamation-triangle text-red-500 ml-1"></i>';
-                badge.classList.add('!bg-red-100', '!text-red-600');
-
-                const alert = document.createElement('span');
-                alert.className = 'hourly-1h-alert text-[9px] text-red-500 font-bold ml-1';
-                alert.innerHTML = '¡Mín. 1h! <i class="fas fa-exclamation-circle"></i>';
-                left.appendChild(alert);
-            } else {
-                badge.innerHTML = '2';
-                badge.classList.remove('!bg-red-100', '!text-red-600');
+            let alert = host.querySelector('.hourly-1h-alert');
+            if (!isOneHour) {
+                alert?.remove();
+                return;
             }
+            if (!alert) {
+                alert = document.createElement('p');
+                alert.className = 'hourly-1h-alert text-[9px] text-red-500 font-bold mb-1';
+                host.prepend(alert);
+            }
+            alert.innerHTML = '¡Mín. 1h! <i class="fas fa-exclamation-circle"></i>';
         };
 
         // Ensure dynamic adder UI (Google search + map pick) is present when using hourly multi

@@ -925,6 +925,59 @@
                                 </div>
                             </div>
                         </div>
+                        <div id="trip-options-panel" class="trip-advanced-block space-y-2.5">
+                                <!-- Opcional, en el paso que sí abre: otra persona y por horas. La hora del viaje está arriba. -->
+                                <input type="checkbox" id="trip-schedule-toggle" class="sr-only" tabindex="-1" aria-hidden="true" onchange="window.toggleTripScheduleFields?.()">
+                                <input type="hidden" id="trip-schedule-datetime" value="">
+
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="trip-third-party-toggle" class="rounded border-slate-300 text-violet-600" onchange="window.toggleThirdPartyFields()">
+                                    <span class="text-[10px] font-black text-slate-700 uppercase"><i class="fas fa-user-friends"></i> Viaje / envío para otra persona</span>
+                                </label>
+                                <div id="trip-third-party-fields" class="hidden space-y-2">
+                                    <select id="trip-rider-relation" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+                                        <option value="mama">Mi mamá</option>
+                                        <option value="papa">Mi papá</option>
+                                        <option value="hijo">Mi hijo/a</option>
+                                        <option value="esposo">Mi esposo/a</option>
+                                        <option value="otro">Otra persona</option>
+                                    </select>
+                                    <input id="trip-rider-name" type="text" placeholder="Nombre de quien viaja" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+                                    <input id="trip-rider-phone" type="tel" placeholder="WhatsApp de quien viaja (+504...)" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+                                </div>
+
+                                <label class="flex items-center gap-2 cursor-pointer mt-1">
+                                    <input type="checkbox" id="trip-hourly-toggle" class="rounded border-slate-300 text-emerald-600" onchange="window.toggleHourlyBooking()">
+                                    <span class="text-[10px] font-black text-emerald-700 uppercase"><i class="fas fa-clock"></i> Reservar conductor por horas (múltiples paradas · precio fijo)</span>
+                                </label>
+                                <div id="hourly-options" class="hidden mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                                    <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1.5">Duración de la reserva</p>
+                                    <div id="hourly-hours-chips" class="flex flex-wrap gap-1.5">
+                                        <!-- populated by JS: chips hasta 24h -->
+                                    </div>
+
+                                    <p class="text-[9px] text-emerald-700 font-bold mt-2.5 leading-snug">
+                                        <i class="fas fa-users"></i> Las personas se eligen arriba (obligatorio · máx. 4). El conductor lo verá.
+                                    </p>
+
+                                    <div class="mt-2.5">
+                                        <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1">Hora de inicio (hora de Honduras)</p>
+                                        <input type="time" id="hourly-start-time" value="08:00" class="w-full px-3 py-2 border border-emerald-200 rounded-xl text-sm bg-white">
+                                        <p class="text-[8px] text-emerald-600 mt-0.5">Usamos hora oficial de Honduras para evitar fraudes. Recargo nocturno aplica.</p>
+                                    </div>
+
+                                    <div class="mt-2.5">
+                                        <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1">Tipo de reserva</p>
+                                        <div id="hourly-stop-type" class="flex gap-2">
+                                            <button type="button" data-hourly-stop="standard" class="flex-1 px-2 py-1.5 text-xs font-black rounded-xl border border-emerald-300 bg-emerald-600 text-white active">Estándar (2 paradas)</button>
+                                            <button type="button" data-hourly-stop="multi" class="flex-1 px-2 py-1.5 text-xs font-black rounded-xl border border-emerald-300 bg-white text-emerald-700">Múltiples paradas</button>
+                                        </div>
+                                        <p id="hourly-stop-hint" class="text-[8px] text-emerald-600 mt-0.5">Estándar: solo recogida + 1 destino. Múltiples: conductor sigue tus instrucciones.</p>
+                                    </div>
+
+                                    <p class="text-[9px] text-emerald-600 mt-1.5">Tarifa por hora según vehículo. Máx 4 personas. <span data-commission-service="hourly"></span></p>
+                                </div>
+                            </div>
                     </div>
                 </div>
             </div>
@@ -2629,15 +2682,7 @@
             </article>
         </div>
     </div>
-        <button type="button" id="trip-advanced-toggle" class="trip-advanced-toggle" aria-expanded="false">
-            <span class="trip-advanced-toggle-left">
-                <span class="trip-step-badge trip-step-badge--muted">2</span>
-                <span>Más opciones</span>
-            </span>
-            <span class="trip-advanced-toggle-hint">Por horas · otra persona · flete/envío</span>
-            <i class="fas fa-chevron-down trip-advanced-chevron"></i>
-        </button>
-        <div id="trip-advanced-body" class="trip-advanced-body hidden">
+        <div id="trip-advanced-body" class="trip-advanced-body">
     <div id="freight-details-panel" class="hidden trip-advanced-block freight-panel space-y-2">
         <p class="trip-advanced-block-title"><i class="fas fa-truck-loading"></i> Datos del flete</p>
         <textarea id="freight-cargo-desc" rows="2" placeholder="¿Qué transportas? (muebles, bloques, ganado, materiales, maquinaria...)"
@@ -2713,64 +2758,6 @@
         </div>
         <textarea id="tow-notes" rows="2" placeholder="Notas: acceso, tráfico, taller de destino, seguro..."
                   class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white resize-none"></textarea>
-    </div>
-
-    <div id="trip-options-panel" class="trip-advanced-block space-y-2.5">
-        <!-- Compat: programación vive arriba (trip-when-panel). Campos ocultos que lee el JS. -->
-        <input type="checkbox" id="trip-schedule-toggle" class="sr-only" tabindex="-1" aria-hidden="true" onchange="window.toggleTripScheduleFields?.()">
-        <input type="hidden" id="trip-schedule-datetime" value="">
-
-        <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" id="trip-third-party-toggle" class="rounded border-slate-300 text-violet-600" onchange="window.toggleThirdPartyFields()">
-            <span class="text-[10px] font-black text-slate-700 uppercase"><i class="fas fa-user-friends"></i> Viaje / envío para otra persona</span>
-        </label>
-        <div id="trip-third-party-fields" class="hidden space-y-2">
-            <select id="trip-rider-relation" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-                <option value="mama">Mi mamá</option>
-                <option value="papa">Mi papá</option>
-                <option value="hijo">Mi hijo/a</option>
-                <option value="esposo">Mi esposo/a</option>
-                <option value="otro">Otra persona</option>
-            </select>
-            <input id="trip-rider-name" type="text" placeholder="Nombre de quien viaja" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-            <input id="trip-rider-phone" type="tel" placeholder="WhatsApp de quien viaja (+504...)" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-        </div>
-
-        <!-- HOURLY BOOKING TOGGLE (Reservar conductor por horas) -->
-        <label class="flex items-center gap-2 cursor-pointer mt-1">
-            <input type="checkbox" id="trip-hourly-toggle" class="rounded border-slate-300 text-emerald-600" onchange="window.toggleHourlyBooking()">
-            <span class="text-[10px] font-black text-emerald-700 uppercase"><i class="fas fa-clock"></i> Reservar conductor por horas (múltiples paradas · precio fijo)</span>
-        </label>
-        <div id="hourly-options" class="hidden mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl">
-            <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1.5">Duración de la reserva</p>
-            <div id="hourly-hours-chips" class="flex flex-wrap gap-1.5">
-                <!-- populated by JS: chips hasta 24h -->
-            </div>
-
-            <p class="text-[9px] text-emerald-700 font-bold mt-2.5 leading-snug">
-                <i class="fas fa-users"></i> Las personas se eligen arriba (obligatorio · máx. 4). El conductor lo verá.
-            </p>
-
-            <!-- Hora de inicio -->
-            <div class="mt-2.5">
-                <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1">Hora de inicio (hora de Honduras)</p>
-                <input type="time" id="hourly-start-time" value="08:00" class="w-full px-3 py-2 border border-emerald-200 rounded-xl text-sm bg-white">
-                <p class="text-[8px] text-emerald-600 mt-0.5">Usamos hora oficial de Honduras para evitar fraudes. Recargo nocturno aplica.</p>
-            </div>
-
-            <!-- Tipo de paradas -->
-            <div class="mt-2.5">
-                <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1">Tipo de reserva</p>
-                <div id="hourly-stop-type" class="flex gap-2">
-                    <button type="button" data-hourly-stop="standard" class="flex-1 px-2 py-1.5 text-xs font-black rounded-xl border border-emerald-300 bg-emerald-600 text-white active">Estándar (2 paradas)</button>
-                    <button type="button" data-hourly-stop="multi" class="flex-1 px-2 py-1.5 text-xs font-black rounded-xl border border-emerald-300 bg-white text-emerald-700">Múltiples paradas</button>
-                </div>
-                <p id="hourly-stop-hint" class="text-[8px] text-emerald-600 mt-0.5">Estándar: solo recogida + 1 destino. Múltiples: conductor sigue tus instrucciones.</p>
-            </div>
-
-            <p class="text-[9px] text-emerald-600 mt-1.5">Tarifa por hora según vehículo. Máx 4 personas. <span data-commission-service="hourly"></span></p>
-        </div>
-
     </div>
         </div>
     </section>
