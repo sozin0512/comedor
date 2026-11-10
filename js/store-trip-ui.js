@@ -395,6 +395,53 @@ export function parseCustomerPhone(raw, trip) {
     return { ok: false, reason: "invalid" };
 }
 
+function finiteMapPoint(lat, lng) {
+    const la = Number(lat);
+    const ln = Number(lng);
+    if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
+    if (Math.abs(la) > 90 || Math.abs(ln) > 180) return null;
+    if (la === 0 && ln === 0) return null;
+    return { lat: Math.round(la * 1e6) / 1e6, lng: Math.round(ln * 1e6) / 1e6 };
+}
+
+/** Coordenadas ya guardadas en el viaje. No calcula ni aproxima. */
+export function storeTripMapPoints(trip) {
+    return {
+        business: finiteMapPoint(trip?.originLat, trip?.originLng),
+        customer: finiteMapPoint(trip?.destinationLat, trip?.destinationLng),
+    };
+}
+
+function externalMapLinks(point) {
+    const q = `${point.lat},${point.lng}`;
+    return {
+        google: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`,
+        waze: `https://www.waze.com/ul?ll=${encodeURIComponent(q)}&navigate=no`,
+    };
+}
+
+function mapPlaceRow(label, place, point, missingText) {
+    if (!point) {
+        return `<p class="hr-map-place hr-map-place--missing" data-map-place="${place}" data-map-state="unavailable">${esc(missingText)}</p>`;
+    }
+    const links = externalMapLinks(point);
+    return `<div class="hr-map-place" data-map-place="${place}" data-map-state="ready">
+        <span class="hr-map-place__label">${esc(label)}</span>
+        <a class="hr-map-place__link" data-map-app="google" href="${esc(links.google)}" target="_blank" rel="noopener">Google Maps</a>
+        <a class="hr-map-place__link" data-map-app="waze" href="${esc(links.waze)}" target="_blank" rel="noopener">Waze</a>
+    </div>`;
+}
+
+/** Negocio y cliente en Maps y Waze. Solo el repartidor asignado. */
+export function deliveryExternalMapsHtml(trip, viewerId) {
+    if (!viewerIsAssignedRider(trip, viewerId)) return "";
+    const points = storeTripMapPoints(trip);
+    return `<div class="hr-map-links" data-delivery-map-links="1">
+        ${mapPlaceRow("Negocio", "business", points.business, "Ubicación del negocio no disponible")}
+        ${mapPlaceRow("Cliente", "customer", points.customer, "Ubicación del cliente no disponible")}
+    </div>`;
+}
+
 export function viewerIsAssignedRider(trip, viewerId) {
     const assigned = String(trip?.driverId || "").trim();
     const viewer = String(viewerId || "").trim();
@@ -476,6 +523,7 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null, opts = {}) {
             <p class="hr-moto-next">${esc(stageMeta.headerTitle)}</p>
             <p class="hr-moto-dest">${esc(destLine)}</p>
             ${stageMeta.stage === "at_store" ? arrivalCustomerPhoneHtml(t, opts.viewerId) : ""}
+            ${deliveryExternalMapsHtml(t, opts.viewerId)}
             ${driverStagePrimaryHtml(t, stageMeta)}
         </div>
         <details class="hr-store-more">
@@ -816,6 +864,11 @@ export const STORE_TRIP_CSS = `
 .hr-arrival-phone__links{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .hr-arrival-phone__call,.hr-arrival-phone__wa{display:flex;align-items:center;justify-content:center;min-height:40px;border-radius:10px;font-size:12px;font-weight:900;text-decoration:none;color:#fff}
 .hr-arrival-phone__call{background:#1d4ed8}.hr-arrival-phone__wa{background:#16a34a}
+.hr-map-links{display:flex;flex-direction:column;gap:4px}
+.hr-map-place{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px;align-items:center}
+.hr-map-place--missing{display:block;margin:0;font-size:11px;font-weight:800;color:#64748b}
+.hr-map-place__label{font-size:11px;font-weight:900;color:#0f172a}
+.hr-map-place__link{display:flex;align-items:center;justify-content:center;min-height:32px;border-radius:8px;background:#f8fafc;border:1px solid #cbd5e1;color:#0f172a;font-size:11px;font-weight:800;text-decoration:none}
 .hr-store-more{margin-top:6px}
 .hr-store-more>summary{cursor:pointer;font-size:12px;font-weight:800;color:#475569}
 `;
