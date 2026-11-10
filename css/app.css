@@ -27593,6 +27593,24 @@ body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.p
 body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
     max-height: none !important;
 }
+/*
+ * Inicio del pasajero (APK): el sheet ya termina en el borde de #app-interface,
+ * y ese shell reserva --safe-bottom (barra del sistema + 8px). El panel repetía
+ * ese inset en su padding-bottom (en celular, 0.3rem + --safe-bottom) y
+ * #panel-content / el hub sumaban otro poco. Esa suma es la franja blanca bajo
+ * .hrh-nav. Aquí el fondo blanco llega hasta 8px por encima de la barra; los
+ * iconos y las etiquetas quedan en ese respiro. No cambia conductor, búsqueda,
+ * viaje activo, reserva programada, docks ni el candado de espera.
+ */
+body.capacitor-native.client-mode.passenger-mode-home:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.scheduled-reserved-active) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    padding-bottom: 0 !important;
+}
+body.capacitor-native.client-mode.passenger-mode-home:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.scheduled-reserved-active) #control-panel:not(.panel-collapsed):not(.panel-hidden) #panel-content {
+    padding-bottom: 0 !important;
+}
+body.capacitor-native.client-mode.passenger-mode-home:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.scheduled-reserved-active) #passenger-home-hub.hrh {
+    padding-bottom: 0 !important;
+}
 
 /* v.81 · Viaje / Envío / Flete / Grúa: el panel crece con el contenido (como el inicio)
    y usa el estilo HonduRaite (azul marino, brillo azul, franja de bandera). */
