@@ -154,6 +154,8 @@ import {
     serviceStepCopy,
     canConfirmHighlightedType,
     bookingTypeButtonName,
+    routePointIsCommitted,
+    shouldQuoteRouteNow,
 } from "./booking-primary-action.mjs?v=2026.10.26.99";
 import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.99";
 import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.99";
@@ -6890,13 +6892,29 @@ if (document.readyState === 'loading') {
             if (!originEl || !destEl) return;
 
             const isHourly = window.currentBookingMode === 'hourly';
-            const hasOrigin = !!(window.readAutocompleteText?.(originEl) || originEl._routeEndpoint?.address);
-            const hasDest = !!(window.readAutocompleteText?.(destEl) || destEl._routeEndpoint?.address);
-
-            // For hourly: only origin required to show options (dest is optional)
-            const ready = isHourly ? hasOrigin : (hasOrigin && hasDest);
+            const ready = shouldQuoteRouteNow({
+                origin: originEl._routeEndpoint,
+                destination: destEl._routeEndpoint,
+                hourly: isHourly,
+            });
             const isSpecialService = window.currentServiceType === 'delivery' || isFreightService(window.currentServiceType);
             const showRideCards = ready && !isHourly && !isSpecialService;
+
+            // Texto a medio escribir: no spinner, no geocoder y no rearmar las tarjetas.
+            // Las sugerencias de Places tienen que salir al momento.
+            if (!ready) {
+                const midType = (el) => {
+                    const text = (window.readAutocompleteText?.(el) || '').trim();
+                    return text.length >= 3 && !routePointIsCommitted(el?._routeEndpoint);
+                };
+                if (rideOptions && (midType(originEl) || midType(destEl) || !isHourly)) {
+                    rideOptions.classList.add('hidden');
+                }
+                if (!midType(originEl) && !midType(destEl)) {
+                    window.syncBookingProgression?.({ scroll: false });
+                }
+                return;
+            }
 
             // El picker vive en la tarjeta flotante; no forzar el wrap del panel.
 

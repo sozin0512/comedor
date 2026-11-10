@@ -3015,14 +3015,15 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                             window.restoreRouteFieldSnapshot?.(el, snap);
                             return;
                         }
+                        // Sigue siendo borrador: no geocodificar ni cotizar en cada tecla.
                         window.storeRouteEndpoint?.(el, {
                             address: text,
                             latLng: null,
                             place: null,
-                            source: 'manual'
+                            source: 'draft'
                         });
                         window.currentRouteData = null;
-                        window.showServiceOptionsIfReady?.();
+                        document.getElementById('ride-options')?.classList.add('hidden');
                         if (el === originEl && window.updateOriginGPSButton) {
                             window.updateOriginGPSButton();
                         }
@@ -3065,7 +3066,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     gpsAddress: sameAsCommitted ? (current?.gpsAddress || null) : null
                 });
                 window.currentRouteData = null;
-                window.showServiceOptionsIfReady?.();
+                // No cotizar ni mostrar «Calculando…» mientras escribe. La tarifa corre al elegir el lugar.
+                if (!sameAsCommitted) document.getElementById('ride-options')?.classList.add('hidden');
                 if (window.currentTripQuote) {
                     document.getElementById('fare-card')?.classList.add('hidden');
                     window.currentTripQuote = null;
@@ -3323,8 +3325,16 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 obs.observe(originEl, { childList: true, subtree: true });
 
                 // Extra robust: observe the origin component itself for any value/ clear changes
-                const originObs = new MutationObserver(() => updateGPSBtn());
-                originObs.observe(originEl, { attributes: true, childList: true, subtree: true, characterData: true });
+                let gpsBtnFrame = 0;
+                const scheduleGPSBtn = () => {
+                    if (gpsBtnFrame) return;
+                    gpsBtnFrame = requestAnimationFrame(() => {
+                        gpsBtnFrame = 0;
+                        updateGPSBtn();
+                    });
+                };
+                const originObs = new MutationObserver(scheduleGPSBtn);
+                originObs.observe(originEl, { attributes: true, childList: true, subtree: true });
 
                 // Listen directly on the host for input/change (more reliable for clear X)
                 originEl.addEventListener('input', updateGPSBtn, true);

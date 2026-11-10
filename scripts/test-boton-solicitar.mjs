@@ -16,11 +16,26 @@ import {
     bookingNavClearancePx,
     ANDROID_3BTN_NAV_PX,
     ANDROID_GESTURE_NAV_PX,
+    routePointIsCommitted,
+    shouldQuoteRouteNow,
 } from '../js/booking-primary-action.mjs';
+
+const gps = { source: 'gps', latLng: { lat: 14.08, lng: -87.2 }, address: 'Tegucigalpa' };
+const picked = { source: 'place', latLng: { lat: 14.1, lng: -87.22 }, address: 'Supermercado La Colonia' };
+const draft = { source: 'draft', latLng: null, address: 'colo' };
+assert.equal(routePointIsCommitted(draft), false);
+assert.equal(routePointIsCommitted({ source: 'manual', latLng: null, address: 'colo' }), false);
+assert.equal(routePointIsCommitted(gps), true);
+assert.equal(shouldQuoteRouteNow({ origin: gps, destination: draft }), false, 'escribir el destino no cotiza');
+assert.equal(shouldQuoteRouteNow({ origin: draft, destination: picked }), false, 'escribir el origen no cotiza');
+assert.equal(shouldQuoteRouteNow({ origin: gps, destination: picked }), true, 'lugar elegido sí cotiza');
+assert.equal(shouldQuoteRouteNow({ origin: gps, destination: null, hourly: true }), true);
+assert.equal(shouldQuoteRouteNow({ origin: draft, hourly: true }), false);
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const app = read('js/app.js');
+const maps = read('js/maps-init.js');
 const home = read('js/passenger-home.js');
 const html = read('index.html');
 const css = read('css/app.css');
@@ -185,6 +200,12 @@ assert.match(css, /\.booking-primary-dock\s*\{[^}]*position:\s*fixed/);
 assert.match(app, /if \(routeReady && serviceReady && paxReady && bookingNowIsDefault\(\) && !editingWhen\) \{\s*window\.whenStepConfirmed = true;/);
 assert.match(app, /openStep === 'when' && whenReady && bookingNowIsDefault\(\)/);
 assert.match(app, /Personas listas y «Ahora» ya es el valor/);
+assert.match(app, /shouldQuoteRouteNow\(/);
+assert.match(maps, /source: 'draft'/);
+assert.match(maps, /No cotizar ni mostrar «Calculando…» mientras escribe/);
+const draftBlock = maps.slice(maps.indexOf('Texto parcial escrito'), maps.indexOf('const attachAutocompleteInputWatch'));
+assert.doesNotMatch(draftBlock, /showServiceOptionsIfReady/);
+assert.match(maps, /new MutationObserver\(scheduleGPSBtn\)/);
 assert.match(css, /\.booking-continue-btn\s*\{[^}]*min-height:\s*3rem/);
 assert.match(css, /\.passenger-booking-progress\s*\{[^}]*overflow-y:\s*auto/);
 assert.match(css, /@media \(max-width:\s*380px\)/);

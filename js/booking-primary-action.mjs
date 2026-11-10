@@ -20,6 +20,24 @@ const TYPE_BUTTON_NAME = {
     grua: 'Grúa',
 };
 
+/**
+ * Un punto cuenta para cotizar solo si ya tiene coordenadas
+ * (sugerencia elegida, GPS o pin). El texto a medio escribir no.
+ */
+export function routePointIsCommitted(endpoint) {
+    if (!endpoint || endpoint.source === 'draft') return false;
+    const lat = Number(endpoint.latLng?.lat);
+    const lng = Number(endpoint.latLng?.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+/** No calcular ruta ni mostrar el spinner mientras la persona sigue escribiendo. */
+export function shouldQuoteRouteNow({ origin, destination, hourly = false } = {}) {
+    if (!routePointIsCommitted(origin)) return false;
+    if (hourly) return true;
+    return routePointIsCommitted(destination);
+}
+
 export function bookingTypeButtonName(type, fallbackLabel = '') {
     const named = TYPE_BUTTON_NAME[type];
     if (named) return named;
