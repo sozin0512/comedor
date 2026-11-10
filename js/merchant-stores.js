@@ -2614,6 +2614,17 @@ function exitStoresWorldIfIdle() {
 }
 
 export function openMarketplace() {
+    if (window.hrPassengerWaitingLockActive?.()) {
+        toast(window.HR_WAITING_LOCK_TOAST
+            || 'Tenés un viaje en espera. No podés pedir otro servicio hasta que se complete o lo cancelés.', 'warning');
+        window.hrRevealPassengerWaitingLock?.();
+        return;
+    }
+    if (typeof window.hrPassengerRequestBlocked === 'function') {
+        window.hrPassengerRequestBlocked('stores').then((blocked) => {
+            if (blocked) window.closeStoresMarketplace?.({ silent: true });
+        }).catch(() => {});
+    }
     bindUiHooks();
     startStoresListener();
     startClientOrdersListener();
@@ -4596,6 +4607,14 @@ function markCheckoutFieldInvalid(inputId, message) {
 }
 
 async function placeOrder(orderOpts = {}) {
+    if (typeof window.hrPassengerRequestBlocked === 'function') {
+        const blocked = await window.hrPassengerRequestBlocked('tiendas');
+        if (blocked) return;
+    } else if (window.hrPassengerWaitingLockActive?.()) {
+        toast(window.HR_WAITING_LOCK_TOAST
+            || 'Tenés un viaje en espera. No podés pedir otro servicio hasta que se complete o lo cancelés.', 'warning');
+        return;
+    }
     const user = getCurrentUser();
     const profile = getUserProfile() || {};
     // Sin cuenta: nombre + WhatsApp → el servidor crea el pedido (guestCreateRequest), solo efectivo.

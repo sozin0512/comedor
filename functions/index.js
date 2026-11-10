@@ -7,6 +7,7 @@ const { getFirestore, FieldValue, FieldPath, Timestamp } = require('firebase-adm
 const { getMessaging } = require('firebase-admin/messaging');
 const crypto = require('crypto');
 const schedCopy = require('./scheduled-trip-driver-ui');
+const waitingLock = require('./scheduled-trip-client-lock');
 
 initializeApp();
 
@@ -896,6 +897,22 @@ exports.validateTripCreation = onCall(async (request) => {
     const approvalStatus = priv.approvalStatus || pub.approvalStatus || null;
     if (approvalStatus === 'suspended' || approvalStatus === 'rejected') {
         throw new HttpsError('failed-precondition', 'Cuenta suspendida o rechazada. Contacta a soporte.');
+    }
+
+    const callerStaff = await waitingLock.callerIsStaff(db, roles.helpers, request.auth, APP_ID, {
+        adminEmail: ADMIN_EMAIL,
+        knownEmails: KNOWN_STAFF_EMAILS
+    });
+    if (!callerStaff && !waitingLock.requestSkipsWaitingLock(trip)) {
+        let waiting = null;
+        try {
+            waiting = await waitingLock.loadWaitingScheduledTrip(db, APP_ID, auth.uid);
+        } catch (e) {
+            console.warn('waitingScheduledLock lookup', e?.message || e);
+        }
+        if (waiting) {
+            throw new HttpsError('failed-precondition', waitingLock.WAITING_LOCK_TOAST);
+        }
     }
 
     // Legal check: no bloquear, solo advertir
@@ -4080,6 +4097,15 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
     async (event) => {
         const trip = event.data.data() || {};
         const { appId, tripId } = event.params;
+        const rejectedWaiting = await waitingLock.rejectTripIfClientWaiting({
+            db, FieldValue, appId, tripId, trip, getAuth,
+            adminEmail: ADMIN_EMAIL,
+            knownEmails: KNOWN_STAFF_EMAILS
+        }).catch((e) => {
+            console.warn('waitingScheduledLock', e?.message || e);
+            return false;
+        });
+        if (rejectedWaiting) return;
         // Programados también empiezan en pending (negociar/aceptar antes de reservar)
         if (trip.status !== 'pending' || trip.isDemandSimulation) return;
 
@@ -5125,6 +5151,18 @@ exports.onStoreOrderCreatedPush = onDocumentCreated(
     async (event) => {
         const d = event.data.data() || {};
         const { appId, orderId } = event.params;
+        const rejectedOrder = await waitingLock.rejectStoreOrderIfClientWaiting({
+            db, FieldValue, appId, orderId, order: d, getAuth,
+            adminEmail: ADMIN_EMAIL,
+            knownEmails: KNOWN_STAFF_EMAILS
+        }).catch((e) => {
+            console.warn('waitingScheduledLock order', e?.message || e);
+            return false;
+        });
+        if (rejectedOrder) {
+            await refundStoreOrderSaldoAdmin(appId, orderId, d, 'waiting_scheduled_lock').catch(() => {});
+            return;
+        }
         if (!d.ownerId) return;
         // Solo pedidos nuevos del cliente
         if (d.status && d.status !== 'pending') return;
