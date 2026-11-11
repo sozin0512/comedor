@@ -951,6 +951,13 @@
                 <p id="trip-request-hint" class="trip-request-hint">Calculando tarifa…</p>
             </div>
 
+        </div><!-- /passenger-booking-progress -->
+
+        <!-- Acción principal fija: fuera del scroll, arriba de la barra de Android -->
+        <div id="booking-primary-dock" class="booking-primary-dock hidden" data-mode="hidden" data-above-system-nav="1">
+            <button type="button" id="booking-continue-btn" class="booking-continue-btn trip-touch-btn" data-booking-mode="hidden" aria-disabled="true">
+                <span class="pointer-events-none" id="booking-continue-label">CONTINUAR</span>
+            </button>
         </div>
     </div>
 
@@ -3157,6 +3164,9 @@
             </div>
         </main>
     </div>
+
+    <!-- Programado reservado mientras el conductor va en otro viaje (fijo, no se scrollea) -->
+    <div id="scheduled-companion" class="hr-sched-companion hidden" hidden aria-live="polite"></div>
 
     <!-- Pantalla emergente tipo Uber: oferta de viaje al conductor -->
     <div id="driver-trip-offer-popup" class="driver-trip-offer-popup hidden" aria-hidden="true" role="dialog" aria-labelledby="driver-trip-offer-popup-title">

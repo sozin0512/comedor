@@ -1848,6 +1848,15 @@ async function createWhatsAppTrip({ phone, name, origin, dest, scheduledFor, cli
         negotiationEnabled: false,
         ...(extra && typeof extra === 'object' ? extra : {})
     };
+    const waitingLock = require('./scheduled-trip-client-lock');
+    if (!waitingLock.requestSkipsWaitingLock(payload)) {
+        const waiting = await waitingLock.loadWaitingScheduledTrip(db(), APP_ID, guestId).catch(() => null);
+        if (waiting) {
+            const err = new Error(waitingLock.WAITING_LOCK_TOAST);
+            err.code = 'failed-precondition';
+            throw err;
+        }
+    }
     const ref = await db().collection(`artifacts/${APP_ID}/public/data/trips`).add(payload);
     return { id: ref.id, priceNum, km, payload, zone };
 }
@@ -1889,17 +1898,26 @@ async function finishTripAndSendLink(to, session, contactName) {
     } catch (e) {
         console.warn('[wa] availability check', e?.message || e);
     }
-    const created = await createWhatsAppTrip({
-        phone: to,
-        name: contactName,
-        origin: session.origin || { address: 'Por definir', lat: null, lng: null },
-        dest: session.dest || { address: 'Por definir', lat: null, lng: null },
-        scheduledFor: session.scheduledFor || null,
-        clientChoosesSchedule: session.clientChoosesSchedule === true,
-        clientChoosesRoute: session.clientChoosesRoute === true,
-        serviceType: session.serviceType || 'auto',
-        stops: session.stops || []
-    });
+    let created;
+    try {
+        created = await createWhatsAppTrip({
+            phone: to,
+            name: contactName,
+            origin: session.origin || { address: 'Por definir', lat: null, lng: null },
+            dest: session.dest || { address: 'Por definir', lat: null, lng: null },
+            scheduledFor: session.scheduledFor || null,
+            clientChoosesSchedule: session.clientChoosesSchedule === true,
+            clientChoosesRoute: session.clientChoosesRoute === true,
+            serviceType: session.serviceType || 'auto',
+            stops: session.stops || []
+        });
+    } catch (e) {
+        if (e?.code === 'failed-precondition') {
+            await clearSession(to);
+            return sendCloudText(to, `${e.message} 🙏`);
+        }
+        throw e;
+    }
     await clearSession(to);
     const whenLine = session.scheduledFor
         ? `Programado: ${session.scheduleLabel || session.scheduledFor}`

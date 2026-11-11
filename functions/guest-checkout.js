@@ -14,6 +14,7 @@ const MAX_ACTIVE = 3;
 const MAX_PER_DAY = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TRIP_SERVICES = ['auto', 'taxi', 'moto', 'flete_paila', 'flete_camion', 'grua', 'delivery'];
+const waitingLock = require('./scheduled-trip-client-lock');
 
 /** +504 / 504 / 8 dígitos → «504XXXXXXXX» (celular hondureño: empieza en 3, 7, 8 o 9). */
 function normalizeGuestPhone(raw) {
@@ -104,26 +105,36 @@ module.exports = function guestCheckoutModule({ db, FieldValue, HttpsError, onCa
     async function createTripFor(guest, p, meta) {
         const t = sanitizeTripInput(p);
         if (t.error) throw new HttpsError('invalid-argument', t.error);
+        const waitingTrip = await waitingLock.loadWaitingScheduledTrip(db, APP_ID, `guest_${guest.phone}`).catch(() => null);
+        if (waitingTrip) throw new HttpsError('failed-precondition', waitingLock.WAITING_LOCK_TOAST);
         if (checkAvailability) {
             const a = await checkAvailability({ serviceType: t.serviceType, origin: t.origin, dest: t.dest, scheduled: !!t.scheduledFor }).catch(() => null);
             if (a && a.available === false) throw new HttpsError('failed-precondition', a.message || 'Servicio no disponible ahora en tu ciudad.');
         }
-        const created = await createTrip({
-            phone: guest.phone, name: guest.name, origin: t.origin, dest: t.dest, scheduledFor: t.scheduledFor,
-            clientChoosesSchedule: false, clientChoosesRoute: false, serviceType: t.serviceType, stops: t.stops,
-            extra: {
-                createdVia: 'app_guest', guestCheckout: true, guestInvitePending: false,
-                staffCreatedBy: null, staffCreatedByName: null, staffAssistedClient: false, staffCreatedClientClaimed: false,
-                passengers: t.serviceType === 'moto' ? 1 : t.passengers, clientChoosesPassengers: false,
-                deliveryDetails: t.deliveryDetails, freightDetails: t.freightDetails,
-                originPlaceName: t.originPlaceName, destinationPlaceName: t.destinationPlaceName,
-                guestDeviceId: meta.deviceId || null,
-            },
-        });
+        let created;
+        try {
+            created = await createTrip({
+                phone: guest.phone, name: guest.name, origin: t.origin, dest: t.dest, scheduledFor: t.scheduledFor,
+                clientChoosesSchedule: false, clientChoosesRoute: false, serviceType: t.serviceType, stops: t.stops,
+                extra: {
+                    createdVia: 'app_guest', guestCheckout: true, guestInvitePending: false,
+                    staffCreatedBy: null, staffCreatedByName: null, staffAssistedClient: false, staffCreatedClientClaimed: false,
+                    passengers: t.serviceType === 'moto' ? 1 : t.passengers, clientChoosesPassengers: false,
+                    deliveryDetails: t.deliveryDetails, freightDetails: t.freightDetails,
+                    originPlaceName: t.originPlaceName, destinationPlaceName: t.destinationPlaceName,
+                    guestDeviceId: meta.deviceId || null,
+                },
+            });
+        } catch (e) {
+            if (e?.code === 'failed-precondition') throw new HttpsError('failed-precondition', e.message || waitingLock.WAITING_LOCK_TOAST);
+            throw e;
+        }
         return { id: created.id, priceNum: created.priceNum, price: created.payload?.price || null };
     }
 
     async function createOrderFor(guest, p, meta) {
+        const waitingOrder = await waitingLock.loadWaitingScheduledTrip(db, APP_ID, `guest_${guest.phone}`).catch(() => null);
+        if (waitingOrder) throw new HttpsError('failed-precondition', waitingLock.WAITING_LOCK_TOAST);
         const storeId = safeKey(p.storeId);
         const sd = storeId ? await db.doc(`${base}/stores/${storeId}`).get() : null;
         const store = sd?.exists ? { id: sd.id, ...sd.data() } : null;

@@ -6,6 +6,8 @@ const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const crypto = require('crypto');
+const schedCopy = require('./scheduled-trip-driver-ui');
+const waitingLock = require('./scheduled-trip-client-lock');
 
 initializeApp();
 
@@ -897,6 +899,22 @@ exports.validateTripCreation = onCall(async (request) => {
         throw new HttpsError('failed-precondition', 'Cuenta suspendida o rechazada. Contacta a soporte.');
     }
 
+    const callerStaff = await waitingLock.callerIsStaff(db, roles.helpers, request.auth, APP_ID, {
+        adminEmail: ADMIN_EMAIL,
+        knownEmails: KNOWN_STAFF_EMAILS
+    });
+    if (!callerStaff && !waitingLock.requestSkipsWaitingLock(trip)) {
+        let waiting = null;
+        try {
+            waiting = await waitingLock.loadWaitingScheduledTrip(db, APP_ID, auth.uid);
+        } catch (e) {
+            console.warn('waitingScheduledLock lookup', e?.message || e);
+        }
+        if (waiting) {
+            throw new HttpsError('failed-precondition', waitingLock.WAITING_LOCK_TOAST);
+        }
+    }
+
     // Legal check: no bloquear, solo advertir
     const termsAccepted = !!(priv.termsAccepted || pub.termsAccepted);
     const privacyAccepted = !!(priv.privacyAccepted || pub.privacyAccepted);
@@ -1177,7 +1195,7 @@ exports.acceptDriverTrip = onCall(async (request) => {
     if (await driverHasScheduledTripLock(uid)) {
         throw new HttpsError(
             'failed-precondition',
-            'Ya estás a media hora de tu viaje programado. Ve al punto de recogida; no puedes tomar otro viaje.'
+            'Ya es media hora antes de tu viaje programado. Andá al punto de recogida; no podés tomar otro viaje.'
         );
     }
 
@@ -3770,14 +3788,20 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
     const originShort = (trip.origin || '').slice(0, 42);
     const storeTrip = isStoreDeliveryTrip(trip);
     const svcLabel = tripVehicleBadgeLabel(serviceType, trip);
-    const titleCity = `🆕 ${svcLabel} en tu ciudad`;
-    const titleNearby = freight
-        ? `🆕 ${svcLabel} en tu zona`
-        : `🆕 ${svcLabel} cerca, en tu departamento`;
+    const schedCityPush = schedCopy.scheduledOfferPush(trip, { kind: 'city' });
+    const schedNearPush = schedCopy.scheduledOfferPush(trip, { kind: 'nearby' });
+    const titleCity = schedCityPush ? schedCityPush.title : `🆕 ${svcLabel} en tu ciudad`;
+    const titleNearby = schedNearPush
+        ? schedNearPush.title
+        : (freight
+            ? `🆕 ${svcLabel} en tu zona`
+            : `🆕 ${svcLabel} cerca, en tu departamento`);
     const zoneTag = storeTrip && trip.deliveryZoneName ? ` · ${String(trip.deliveryZoneName).slice(0, 30)}` : '';
-    const body = storeTrip
-        ? `${price}${zoneTag} · ${String(trip.deliveryDetails?.restaurant || trip.originPlaceName || originShort || 'Tienda').slice(0, 40)} → ${String(trip.destination || '').slice(0, 40)} — ¡Entrá a aceptar!`
-        : `${price} · ${originShort || 'Ubicación'} — ¡Entrá a aceptar!`;
+    const body = schedCityPush
+        ? schedCityPush.body
+        : (storeTrip
+            ? `${price}${zoneTag} · ${String(trip.deliveryDetails?.restaurant || trip.originPlaceName || originShort || 'Tienda').slice(0, 40)} → ${String(trip.destination || '').slice(0, 40)} — ¡Entrá a aceptar!`
+            : `${price} · ${originShort || 'Ubicación'} — ¡Entrá a aceptar!`);
 
     // Igual que staff: leer todos los perfiles públicos. El where role==driver
     // se saltaba choferes con rol público 'client' (el mismo bug de Pasar).
@@ -4073,6 +4097,15 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
     async (event) => {
         const trip = event.data.data() || {};
         const { appId, tripId } = event.params;
+        const rejectedWaiting = await waitingLock.rejectTripIfClientWaiting({
+            db, FieldValue, appId, tripId, trip, getAuth,
+            adminEmail: ADMIN_EMAIL,
+            knownEmails: KNOWN_STAFF_EMAILS
+        }).catch((e) => {
+            console.warn('waitingScheduledLock', e?.message || e);
+            return false;
+        });
+        if (rejectedWaiting) return;
         // Programados también empiezan en pending (negociar/aceptar antes de reservar)
         if (trip.status !== 'pending' || trip.isDemandSimulation) return;
 
@@ -4644,22 +4677,21 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 ? (after.freightDetails?.cargoDescription || '').slice(0, 36)
                 : '';
             const busyHint = after.offerToBusyDriver
-                ? ' Puedes aceptarlo al terminar tu viaje actual.'
+                ? ' Podés aceptarlo al terminar tu viaje actual.'
                 : '';
             const bodyCore = `${after.price || 'Nueva solicitud'}${dist}${payLabel}`;
             const bodyExtra = cargo || originShort;
-            const scheduledMs = getScheduledTripMs(after);
-            const minsUntilPickup = scheduledMs > Date.now()
-                ? Math.ceil((scheduledMs - Date.now()) / 60000)
-                : 0;
-            const scheduledHint = minsUntilPickup > 0
-                ? ` Recogida programada en ${minsUntilPickup} min (${formatScheduledTripWhen(after.scheduledFor)}).`
-                : '';
-            const offerTitle = minsUntilPickup > 0
-                ? `📅 Programado · ${tripVehicleBadgeLabel(after.serviceType, after)}`
+            const schedPush = schedCopy.scheduledOfferPush(after, { kind: 'targeted' });
+            const offerTitle = schedPush
+                ? schedPush.title
                 : (isFreight ? '🚛 ¡Flete disponible!' : tripOfferPushTitle(after.serviceType, after));
-            const waitHint = minsUntilPickup > 0 ? '' : requestWaitPushSuffix(after);
-            const offerBody = `${bodyCore}${waitHint}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
+            const waitHint = schedPush ? '' : requestWaitPushSuffix(after);
+            const busyVos = after.offerToBusyDriver
+                ? ' Si ya vas en un viaje, este queda guardado y seguís hasta media hora antes.'
+                : '';
+            const offerBody = schedPush
+                ? `${schedPush.body}${busyVos}`
+                : `${bodyCore}${waitHint}${bodyExtra ? ` · ${bodyExtra}` : ''}${busyHint}`;
             const offerData = {
                 type: 'trip_offer',
                 tripId,
@@ -4849,10 +4881,11 @@ exports.onTripUpdatePush = onDocumentUpdated(
 
         // Conductor reservó viaje PROGRAMADO (status scheduled con driver)
         if (before.status === 'pending' && after.status === 'scheduled' && after.driverId && after.clientId) {
-            const whenLabel = formatScheduledTripWhen(after.scheduledFor);
+            const whenLabel = schedCopy.formatWeekdayClock(schedCopy.scheduledForMs(after));
+            const reservedDriverPush = schedCopy.scheduledReservedDriverPush(after);
             await sendPushToUser(appId, after.clientId, {
                 title: '📅 Conductor confirmado para tu viaje programado',
-                body: `${after.driverName || 'Un conductor'} te recogerá el ${whenLabel}. Te avisaremos antes de la hora.`,
+                body: `${after.driverName || 'Un conductor'} te recogerá el ${whenLabel} Te avisaremos antes de la hora.`,
                 data: {
                     type: 'trip_scheduled_reserved',
                     tripId,
@@ -4863,8 +4896,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 highPriority: true
             });
             await sendPushToUser(appId, after.driverId, {
-                title: '📅 Viaje programado reservado',
-                body: `Recogida ${whenLabel}. Te alertaremos 1 h, 30, 10 y 5 min antes. Puedes iniciar antes desde la app.`,
+                title: reservedDriverPush.title,
+                body: reservedDriverPush.body,
                 data: {
                     type: 'trip_scheduled_reserved',
                     tripId,
@@ -5118,6 +5151,18 @@ exports.onStoreOrderCreatedPush = onDocumentCreated(
     async (event) => {
         const d = event.data.data() || {};
         const { appId, orderId } = event.params;
+        const rejectedOrder = await waitingLock.rejectStoreOrderIfClientWaiting({
+            db, FieldValue, appId, orderId, order: d, getAuth,
+            adminEmail: ADMIN_EMAIL,
+            knownEmails: KNOWN_STAFF_EMAILS
+        }).catch((e) => {
+            console.warn('waitingScheduledLock order', e?.message || e);
+            return false;
+        });
+        if (rejectedOrder) {
+            await refundStoreOrderSaldoAdmin(appId, orderId, d, 'waiting_scheduled_lock').catch(() => {});
+            return;
+        }
         if (!d.ownerId) return;
         // Solo pedidos nuevos del cliente
         if (d.status && d.status !== 'pending') return;
@@ -5413,31 +5458,18 @@ async function sendScheduledPickupReminders(appId, docSnap, trip, now) {
     const minsLeft = Math.ceil((scheduledMs - now) / 60000);
     if (minsLeft <= 0) return trip;
 
-    const whenLabel = formatScheduledTripWhen(trip.scheduledFor);
+    const whenLabel = schedCopy.formatClock(schedCopy.scheduledForMs(trip));
     const sent = (trip.scheduledRemindersSent && typeof trip.scheduledRemindersSent === 'object')
         ? { ...trip.scheduledRemindersSent }
         : {};
     const newlySent = {};
-    const originShort = (trip.origin || '').slice(0, 48) || 'punto de recogida';
 
     for (const th of [60, 30, 10, 5]) {
         if (minsLeft > th || sent[String(th)]) continue;
         newlySent[String(th)] = true;
-        let title;
-        let body;
-        if (th >= 60) {
-            title = 'Viaje programado en 1 hora';
-            body = `Recogida ${whenLabel}. ${originShort}.`;
-        } else if (th >= 30) {
-            title = 'Salí al punto de recogida';
-            body = `Tu viaje es a las ${whenLabel}. Ya no puedes tomar otros viajes. Ve ahora: ${originShort}.`;
-        } else if (th >= 10) {
-            title = 'Viaje programado en 10 min';
-            body = `Recogida ${whenLabel}. ${originShort}.`;
-        } else {
-            title = 'Viaje programado en 5 min';
-            body = `Recogida ${whenLabel}. ${originShort}.`;
-        }
+        const reminder = schedCopy.scheduledReminderPush(th, trip);
+        const title = reminder.title;
+        const body = reminder.body;
         await sendPushToUser(appId, trip.driverId, {
             title,
             body,
@@ -5454,7 +5486,7 @@ async function sendScheduledPickupReminders(appId, docSnap, trip, now) {
         if (trip.clientId && (th === 10 || th === 5)) {
             await sendPushToUser(appId, trip.clientId, {
                 title: th === 10 ? 'Tu viaje empieza pronto' : 'Tu viaje es en 5 minutos',
-                body: `${trip.driverName || 'Tu conductor'} te recogerá a las ${whenLabel}.`,
+                body: `${trip.driverName || 'Tu conductor'} te recogerá a las ${whenLabel}`,
                 data: {
                     type: 'scheduled_reminder',
                     tripId: docSnap.id,
@@ -5487,7 +5519,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
         const scheduledMs = getScheduledTripMs(trip);
         if (!scheduledMs) continue;
 
-        const whenLabel = formatScheduledTripWhen(trip.scheduledFor);
+        const whenClock = schedCopy.formatClock(schedCopy.scheduledForMs(trip));
         const hasDriver = !!trip.driverId;
 
         trip = await sendScheduledPickupReminders(appId, docSnap, trip, now);
@@ -5506,9 +5538,10 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
                 scheduledEarlyActivated: isEarly,
                 scheduledActivatedFrom: 'auto_prep',
             });
+            const actPush = schedCopy.scheduledActivationDriverPush(trip);
             await sendPushToUser(appId, trip.driverId, {
-                title: '🚗 Viaje programado ACTIVO',
-                body: `Es hora de moverte. Recogida ${whenLabel}. Abre la app y ve al origen.`,
+                title: actPush.title,
+                body: actPush.body,
                 data: {
                     type: 'scheduled_trip_active',
                     tripId: docSnap.id,
@@ -5521,7 +5554,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
             if (trip.clientId) {
                 await sendPushToUser(appId, trip.clientId, {
                     title: 'Tu viaje programado ya está activo',
-                    body: `${trip.driverName || 'Tu conductor'} se dirige al punto de recogida (${whenLabel}).`,
+                    body: `${trip.driverName || 'Tu conductor'} se dirige al punto de recogida (${whenClock}).`,
                     data: {
                         type: 'scheduled_trip_active',
                         tripId: docSnap.id,
@@ -5551,7 +5584,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
             await sendPushToUser(appId, trip.clientId, {
                 title: isEarly ? 'Buscando conductor para tu viaje programado' : 'Tu viaje programado ya está activo',
                 body: isEarly
-                    ? `Recogida a las ${whenLabel}. Ya contactamos conductores cercanos.`
+                    ? `Recogida a las ${whenClock} Ya contactamos conductores cercanos.`
                     : 'Estamos buscando conductor para tu viaje.',
                 data: { type: 'scheduled_trip_active', tripId: docSnap.id, tag: `scheduled-${docSnap.id}` }
             });

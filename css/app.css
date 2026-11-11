@@ -2601,16 +2601,27 @@
             position: fixed;
             left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px)));
             right: max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px)));
-            bottom: max(0.85rem, calc(0.55rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
-            z-index: 620;
+            /* 8px de respiro + safe-area. En Android el override de abajo sube el botón
+               por encima de la barra de 3 botones (48px) o de la de gestos (20px). */
+            bottom: calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+            z-index: 640;
             pointer-events: none;
             display: flex;
             flex-direction: column;
             align-items: stretch;
-            max-height: min(62vh, 34rem);
+            max-height: min(72vh, 38rem);
+            max-height: min(72dvh, 38rem);
         }
         .booking-float-layer.hidden {
             display: none !important;
+        }
+        /* Barra de 3 botones: si el WebView no reportó el inset, reservar 48px. */
+        body.android-3btn .booking-float-layer {
+            bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        /* Barra de gestos: al menos 20px, o el safe-area real si es mayor. */
+        body.android-gesture .booking-float-layer {
+            bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
         }
         .booking-float-stack,
         .passenger-booking-progress {
@@ -2618,13 +2629,110 @@
             flex-direction: column;
             gap: 0.5rem;
             min-width: 0;
-            max-height: inherit;
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: min(52vh, 28rem);
+            max-height: min(52dvh, 28rem);
             overflow-x: hidden;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             pointer-events: auto;
             padding-bottom: 0.15rem;
+            /* Al abrir «Programar» no anclar el scroll a la tarifa: si no,
+               los botones Ahora / Programar quedan arriba del hueco visible. */
+            overflow-anchor: none;
+        }
+        /* No encoger las tarjetas. Si min-height llega a 0, #trip-when-panel
+           se recorta y solo queda «Elige el momento» encima de la tarifa. */
+        .passenger-booking-progress > .booking-progress-step {
+            flex: 0 0 auto;
+            min-height: min-content;
+            overflow: visible;
+        }
+        .trip-when-adder,
+        #trip-when-panel,
+        .trip-when-modes,
+        .trip-when-schedule {
+            overflow: visible;
+            max-height: none;
+        }
+        body.when-editor-open .passenger-booking-progress {
+            max-height: min(68vh, 36rem);
+            max-height: min(68dvh, 36rem);
+        }
+        body.when-editor-open .booking-float-layer {
+            max-height: min(86vh, 46rem);
+            max-height: min(86dvh, 46rem);
+        }
+        /* Fijo al borde: las tarjetas de arriba pueden apilarse y hacer scroll;
+           SOLICITAR AHORA no se recorta con la barra del teléfono. */
+        .booking-primary-dock {
+            position: fixed;
+            left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+            right: max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+            bottom: calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+            z-index: 660;
+            display: block;
+            margin: 0;
+            pointer-events: auto;
+        }
+        body.android-3btn .booking-primary-dock {
+            bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        body.android-gesture .booking-primary-dock {
+            bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
+        body.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 4.25rem + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
+        body.android-3btn.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 4.25rem + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        body.android-gesture.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 4.25rem + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
+        body.booking-primary-visible #fare-request-btn {
+            display: none;
+        }
+        .booking-primary-dock.hidden {
+            display: none !important;
+        }
+        .booking-continue-btn {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 3rem;
+            padding: 0.75rem 0.85rem;
+            border: 0;
+            border-radius: 1rem;
+            background: linear-gradient(145deg, #1d4ed8, #2563eb);
+            color: #fff;
+            font-weight: 900;
+            font-size: 0.82rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            line-height: 1.15;
+            white-space: normal;
+            box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
+            touch-action: manipulation;
+        }
+        .booking-continue-btn:disabled,
+        .booking-continue-btn[aria-disabled="true"] {
+            background: #94a3b8;
+            box-shadow: none;
+        }
+        @media (max-width: 380px) {
+            .booking-float-layer,
+            .booking-primary-dock {
+                left: max(0.4rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+                right: max(0.4rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+            }
+            .booking-continue-btn {
+                font-size: 0.74rem;
+                letter-spacing: 0.02em;
+                padding: 0.7rem 0.6rem;
+                min-height: 3rem;
+            }
         }
         .booking-float-card,
         .booking-progress-step {
@@ -7232,11 +7340,12 @@
         }
         .driver-offer-sched-banner-title {
             margin: 0;
-            font-size: 0.65rem;
+            font-size: 0.92rem;
             font-weight: 900;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: #b45309;
+            letter-spacing: 0;
+            text-transform: none;
+            color: #92400e;
+            line-height: 1.25;
         }
         .driver-offer-sched-banner-when {
             margin: 0.2rem 0 0;
@@ -7245,12 +7354,25 @@
             color: #92400e;
             line-height: 1.25;
         }
+        .driver-offer-sched-banner-sub,
+        .driver-offer-sched-keep {
+            margin: 0.35rem 0 0.15rem;
+            padding: 0.45rem 0.55rem;
+            border-radius: 0.75rem;
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #9a3412;
+            line-height: 1.35;
+        }
         .driver-offer-sched-banner-sub {
             margin: 0.25rem 0 0;
-            font-size: 0.58rem;
-            font-weight: 700;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            font-size: 0.68rem;
             color: #a16207;
-            line-height: 1.3;
         }
         .driver-offer-sched-badge {
             display: inline-flex;
@@ -27471,6 +27593,24 @@ body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.p
 body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
     max-height: none !important;
 }
+/*
+ * Inicio del pasajero (APK): el sheet ya termina en el borde de #app-interface,
+ * y ese shell reserva --safe-bottom (barra del sistema + 8px). El panel repetía
+ * ese inset en su padding-bottom (en celular, 0.3rem + --safe-bottom) y
+ * #panel-content / el hub sumaban otro poco. Esa suma es la franja blanca bajo
+ * .hrh-nav. Aquí el fondo blanco llega hasta 8px por encima de la barra; los
+ * iconos y las etiquetas quedan en ese respiro. No cambia conductor, búsqueda,
+ * viaje activo, reserva programada, docks ni el candado de espera.
+ */
+body.capacitor-native.client-mode.passenger-mode-home:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.scheduled-reserved-active) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    padding-bottom: 0 !important;
+}
+body.capacitor-native.client-mode.passenger-mode-home:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.scheduled-reserved-active) #control-panel:not(.panel-collapsed):not(.panel-hidden) #panel-content {
+    padding-bottom: 0 !important;
+}
+body.capacitor-native.client-mode.passenger-mode-home:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.scheduled-reserved-active) #passenger-home-hub.hrh {
+    padding-bottom: 0 !important;
+}
 
 /* v.81 · Viaje / Envío / Flete / Grúa: el panel crece con el contenido (como el inicio)
    y usa el estilo HonduRaite (azul marino, brillo azul, franja de bandera). */
@@ -27906,3 +28046,190 @@ body.scheduled-reserved-active:not(.trip-active):not(.panel-minimized):not(.pane
     height: auto !important;
 }
 body.scheduled-reserved-active:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content { max-height: none !important; overflow-y: auto !important; }
+/* Conductor con solo la reserva: la tarjeta no come el radar. El viaje de los 30 min sí puede crecer. */
+body.scheduled-reserved-active.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed):not(.scheduled-takeover) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    max-height: min(58dvh, 30rem) !important;
+}
+body.scheduled-takeover.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    max-height: min(78dvh, 40rem) !important;
+}
+body.driver-mode #scheduled-trip-card.hr-sched.hr-sched--driver .hr-sched-hour { font-size: 1.28rem; }
+body.driver-mode #scheduled-trip-card.hr-sched.hr-sched--driver .hr-sched-head { padding: 0.55rem 0.75rem 0.65rem; }
+body.driver-mode #scheduled-trip-card.hr-sched.hr-sched--driver .hr-sched-btn { padding: 0.62rem 0.7rem; }
+/* Faja fija del programado mientras va en otro viaje.
+   8px de respiro + barra de Android: 3 botones 48px, gestos 20px. */
+#scheduled-companion.hr-sched-companion {
+    position: fixed;
+    z-index: 740;
+    left: max(8px, var(--safe-left, env(safe-area-inset-left, 0px)));
+    right: max(8px, var(--safe-right, env(safe-area-inset-right, 0px)));
+    bottom: calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+    pointer-events: auto;
+}
+body.android-3btn #scheduled-companion.hr-sched-companion {
+    bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+}
+body.android-gesture #scheduled-companion.hr-sched-companion {
+    bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+}
+#scheduled-companion.hr-sched-companion.hidden { display: none !important; }
+.hr-sched-compact {
+    background: #0a1f44;
+    color: #fff;
+    border-radius: 16px;
+    padding: 0.55rem 0.65rem 0.5rem;
+    box-shadow: 0 10px 24px rgba(10, 31, 68, 0.28);
+}
+.hr-sched-compact-main { display: flex; align-items: center; gap: 0.45rem; }
+.hr-sched-compact-cal {
+    width: 2.1rem; height: 2.1rem; border-radius: 10px; background: #123a7a;
+    display: flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #fde68a;
+}
+.hr-sched-compact-copy { flex: 1; min-width: 0; }
+.hr-sched-compact-title { margin: 0; font-size: 0.74rem; font-weight: 900; line-height: 1.25; }
+.hr-sched-compact-route { margin: 0.12rem 0 0; font-size: 0.68rem; font-weight: 700; color: #dbe7ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-sched-compact-pill {
+    flex: 0 0 auto; align-self: center; background: #fbbf24; color: #5b3a00; font-size: 0.62rem; font-weight: 900;
+    border-radius: 999px; padding: 0.28rem 0.45rem; line-height: 1.15; text-align: center; white-space: nowrap;
+}
+.hr-sched-compact-note { margin: 0.4rem 0 0; font-size: 0.64rem; font-weight: 650; color: #e6efff; line-height: 1.3; }
+.hr-sched-takeover { display: flex; flex-direction: column; gap: 0.45rem; text-align: left; }
+.hr-sched-takeover-banner {
+    background: linear-gradient(180deg, #f59e0b 0%, #ea580c 100%);
+    color: #fff; border-radius: 16px; padding: 0.75rem 0.8rem;
+}
+.hr-sched-takeover-kicker { margin: 0; font-size: 0.68rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
+.hr-sched-takeover-title { margin: 0.15rem 0 0; font-size: 1.02rem; font-weight: 900; line-height: 1.2; }
+.hr-sched-takeover-meta { margin: 0.25rem 0 0; font-size: 0.72rem; font-weight: 700; line-height: 1.3; }
+.hr-sched-takeover-go, .hr-sched-takeover-maps {
+    width: 100%; border: 0; border-radius: 14px; font-weight: 900; min-height: 46px; padding: 0.7rem 0.8rem;
+}
+.hr-sched-takeover-go { background: #1d4ed8; color: #fff; font-size: 0.86rem; }
+.hr-sched-takeover-maps { background: #eef4ff; color: #123a7a; border: 1px solid #cfe0fb; font-size: 0.8rem; }
+.hr-sched-pause { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 14px; padding: 0.55rem 0.7rem; color: #92400e; }
+.hr-sched-pause-title { margin: 0; font-weight: 900; font-size: 0.78rem; }
+.hr-sched-pause p { margin: 0.15rem 0 0; font-size: 0.7rem; font-weight: 700; line-height: 1.3; }
+.hr-sched-still { background: #fff; border: 1px solid #fed7aa; border-radius: 14px; padding: 0.55rem 0.7rem; color: #9a3412; }
+.hr-sched-still-q { margin: 0; font-weight: 900; font-size: 0.78rem; }
+.hr-sched-still p { margin: 0.15rem 0 0; font-size: 0.72rem; font-weight: 700; line-height: 1.35; }
+#scheduled-trip-card.hr-sched--takeover { padding-bottom: 0.35rem !important; }
+/* La faja también respeta la barra cuando el panel está abierto: el JS la sube, y este padding
+   deja el botón del takeover por encima de los 3 botones (48px) o de los gestos (20px), más 8px. */
+body.android-3btn.scheduled-takeover #control-panel {
+    padding-bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px)) !important;
+}
+body.android-gesture.scheduled-takeover #control-panel {
+    padding-bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
+}
+/* Pasajero: Cancelar (búsqueda y reserva) queda sobre la barra de Android, 8px de respiro. */
+body.android-3btn.is-searching #searching-cancel-btn,
+body.android-3btn.is-searching #searching-state .passenger-pending-cancel {
+    bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px)) !important;
+}
+body.android-gesture.is-searching #searching-cancel-btn,
+body.android-gesture.is-searching #searching-state .passenger-pending-cancel {
+    bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
+}
+body.android-3btn.scheduled-reserved-active.client-mode #control-panel,
+body.android-3btn.client-mode.is-searching #control-panel {
+    padding-bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px)) !important;
+}
+body.android-gesture.scheduled-reserved-active.client-mode #control-panel,
+body.android-gesture.client-mode.is-searching #control-panel {
+    padding-bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
+}
+body.scheduled-reserved-active.client-mode #scheduled-trip-card.hr-sched #scheduled-trip-actions {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    z-index: 2;
+    padding-bottom: 0.35rem;
+}
+/* Candado del pasajero: tarjeta fija, sin scroll, sobre la barra del sistema. */
+#passenger-waiting-lock.hr-wait-lock {
+    position: fixed;
+    z-index: 13060;
+    left: max(8px, var(--safe-left, env(safe-area-inset-left, 0px)));
+    right: max(8px, var(--safe-right, env(safe-area-inset-right, 0px)));
+    bottom: calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+    background: #fff;
+    color: #0a1f44;
+    border-radius: 20px;
+    padding: 0.7rem 0.7rem 0.75rem;
+    box-shadow: 0 12px 32px rgba(10, 31, 68, 0.28);
+    border: 1px solid #dbe4f0;
+    pointer-events: auto;
+}
+body.android-3btn #passenger-waiting-lock.hr-wait-lock {
+    bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+}
+body.android-gesture #passenger-waiting-lock.hr-wait-lock {
+    bottom: calc(8px + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+}
+#passenger-waiting-lock.hr-wait-lock.hidden,
+body.is-searching #passenger-waiting-lock,
+body.scheduled-reserved-active #passenger-waiting-lock,
+body.trip-active #passenger-waiting-lock,
+body.driver-mode #passenger-waiting-lock { display: none !important; }
+.hr-wait-lock-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    background: radial-gradient(120% 140% at 90% 0%, #2a5fb8 0%, #123a7a 42%, #0a1f44 88%);
+    color: #fff;
+    border-radius: 16px;
+    padding: 0.65rem 0.7rem;
+}
+.hr-wait-lock-dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: #fbbf24;
+    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.28);
+    flex: 0 0 auto;
+}
+.hr-wait-lock-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hr-wait-lock-copy strong { font-size: 0.92rem; font-weight: 900; line-height: 1.2; }
+.hr-wait-lock-copy small {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #dbe7ff;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hr-wait-lock-open {
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 999px;
+    background: #fbbf24;
+    color: #5b3a00;
+    font-weight: 900;
+    font-size: 0.75rem;
+    padding: 0.45rem 0.7rem;
+}
+.hr-wait-lock-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+.hr-wait-lock-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    text-align: left;
+    background: #f7f9fd;
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    padding: 0.65rem 0.7rem;
+    color: #0a1f44;
+}
+.hr-wait-lock-tile i { color: #94a3b8; font-size: 0.85rem; }
+.hr-wait-lock-tile strong { font-size: 0.92rem; font-weight: 900; }
+.hr-wait-lock-tile small { font-size: 0.68rem; font-weight: 800; color: #64748b; }
+#passenger-home-hub.hrh.hrh--waiting-lock .hr-wait-blocked { opacity: 0.72; }
+#passenger-home-hub.hrh.hrh--waiting-lock .hr-tile.hr-wait-blocked small,
+#passenger-home-hub.hrh.hrh--waiting-lock [data-home-mode].hr-wait-blocked small { color: #64748b !important; }
