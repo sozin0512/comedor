@@ -1220,14 +1220,7 @@ function renderAvail() {
       </div>
       <div class="vj-table-wrap" style="margin-top:10px"><table class="vj-rate-t"><thead><tr><th>Servicio en ${esc(zoneName)}</th><th>Estado ahora</th><th>Conductores</th><th>Modo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
-    <div class="vj-card">
-      <div class="vj-row" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <div style="min-width:0;flex:1 1 220px"><b>🏍️ Moto · Decreto 91-2012</b>
-          <div class="vj-sub">Activada: los pasajeros <b>hombres</b> no pueden pedir moto (las mujeres sí). Desactivada: todos pueden pedir moto. Aplica en todas las ciudades.</div></div>
-        <div class="vj-seg vj-avail-seg">${[['on', 'Activada'], ['off', 'Desactivada']].map(([v, l]) =>
-            `<button class="${(ST.appSettings.maleMotoRestriction === true ? 'on' : 'off') === v ? 'on' : ''} vj-av-${v === 'on' ? 'off' : 'on'}" data-act="motoRule" data-v="${v}" ${AVAIL_UI.saving ? 'disabled' : ''}>${l}</button>`).join('')}</div>
-      </div>
-    </div>
+    ${renderMotoRuleCard(key, zoneName)}
     <div class="vj-card vj-sub" style="line-height:1.5">
       <b>Automático:</b> se pone «No disponible» solo cuando no hay ningún conductor aprobado de ese tipo en línea en la ciudad, y vuelve solo cuando alguien se conecta. Los viajes programados sí se pueden pedir.<br>
       <b>Siempre abierto:</b> se puede pedir aunque no haya nadie en línea (se avisa a los conductores fuera de línea, como hoy).<br>
@@ -1235,20 +1228,56 @@ function renderAvail() {
       «Todas las ciudades» es el valor por defecto; lo que pongas en una ciudad gana. Queda registrado quién lo cambió.
     </div>`;
 }
-async function saveMotoRule(on) {
-    if ((ST.appSettings.maleMotoRestriction === true) === on) return;
+function motoRuleMap() {
+    const m = ST.appSettings.maleMotoRestrictionByCity;
+    return (m && typeof m === 'object') ? m : {};
+}
+/** Tarjeta «Moto · Decreto 91-2012» para la ciudad elegida arriba (o «Todas las ciudades»). */
+function renderMotoRuleCard(key, zoneName) {
+    const map = motoRuleMap();
+    const allOn = map._all === true;
+    const isAll = key === '_all';
+    const explicit = !isAll && typeof map[key] === 'boolean';
+    const cur = isAll ? (allOn ? 'on' : 'off') : (explicit ? (map[key] ? 'on' : 'off') : 'inherit');
+    const effective = isAll ? allOn : (explicit ? map[key] : allOn);
+    const opts = isAll
+        ? [['on', 'Activada'], ['off', 'Desactivada']]
+        : [['on', 'Activada'], ['off', 'Desactivada'], ['inherit', `Como todas (${allOn ? 'activada' : 'desactivada'})`]];
+    const btns = opts.map(([v, l]) => `<button class="${cur === v ? 'on' : ''} vj-av-${v === 'on' ? 'off' : (v === 'off' ? 'on' : 'auto')}" data-act="motoRule" data-v="${v}" ${AVAIL_UI.saving ? 'disabled' : ''}>${l}</button>`).join('');
+    const cities = Object.entries(map).filter(([k, v]) => k !== '_all' && v === true).map(([k]) => DEPS.getZoneById?.(k)?.name || k);
+    return `
+    <div class="vj-card">
+      <div class="vj-row" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="min-width:0;flex:1 1 220px"><b>🏍️ Moto · Decreto 91-2012 en ${esc(zoneName)}</b>
+          <div class="vj-sub">Activada: los pasajeros <b>hombres</b> no pueden pedir moto (las mujeres sí). Desactivada: todos pueden pedir moto.
+          ${isAll ? 'Esto es el valor por defecto; cada ciudad puede tener el suyo (elegí la ciudad arriba).' : `Ahora en ${esc(zoneName)}: <b>${effective ? 'activada' : 'desactivada'}</b>.`}</div>
+          ${cities.length ? `<div class="vj-sub" style="margin-top:4px">Activada en: ${cities.map(esc).join(', ')}</div>` : ''}</div>
+        <div class="vj-seg vj-avail-seg">${btns}</div>
+      </div>
+    </div>`;
+}
+async function saveMotoRule(v) {
+    const key = availCityKey();
+    const map = motoRuleMap();
+    const cur = key === '_all' ? (map._all === true ? 'on' : 'off') : (typeof map[key] === 'boolean' ? (map[key] ? 'on' : 'off') : 'inherit');
+    if (cur === v) return;
     AVAIL_UI.saving = 'motoRule';
     render();
     try {
         const fs = DEPS.firestore || await import(FS_URL);
+        const val = v === 'inherit' ? fs.deleteField() : (v === 'on');
         await fs.setDoc(fs.doc(DEPS.db, 'artifacts', DEPS.appId, 'public', 'data', 'appSettings', 'main'), {
-            maleMotoRestriction: on,
+            maleMotoRestrictionByCity: { [key]: val },
             maleMotoRestrictionBy: me()?.uid || null,
             maleMotoRestrictionByName: myProfile()?.name || 'Staff',
             maleMotoRestrictionAt: fs.serverTimestamp()
         }, { merge: true });
-        ST.appSettings = { ...ST.appSettings, maleMotoRestriction: on };
-        toast(on ? 'Restricción activada: los pasajeros hombres no pueden pedir moto.' : 'Restricción desactivada: todos pueden pedir moto.', 'success');
+        const next = { ...map };
+        if (v === 'inherit') delete next[key]; else next[key] = (v === 'on');
+        ST.appSettings = { ...ST.appSettings, maleMotoRestrictionByCity: next };
+        const where = key === '_all' ? 'todas las ciudades (por defecto)' : (availCities().find((c) => c.key === key)?.name || key);
+        toast(v === 'inherit' ? `${where}: usa el valor de todas las ciudades.`
+            : (v === 'on' ? `Decreto activado en ${where}: los pasajeros hombres no pueden pedir moto.` : `Decreto desactivado en ${where}: todos pueden pedir moto.`), 'success');
     } catch (e) {
         toast(errMsg(e), 'error');
     } finally {
@@ -2096,7 +2125,7 @@ function onClick(e, scope) {
         case 'pushNudge': pushNudge([el.dataset.uid]); break;
         case 'pushNudgeAll': pushNudgeAll(); break;
         case 'availMode': if (!AVAIL_UI.saving) saveAvail(el.dataset.svc, v, null); break;
-        case 'motoRule': if (!AVAIL_UI.saving) saveMotoRule(v === 'on'); break;
+        case 'motoRule': if (!AVAIL_UI.saving) saveMotoRule(v); break;
         case 'availMsg': {
             const A = DEPS.avail;
             const zk = availCityKey();

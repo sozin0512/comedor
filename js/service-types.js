@@ -1540,15 +1540,19 @@ export const DECRETO_91_2012_MSG =
 // v.102 · La restricción la prende / apaga el admin (Panel Viajes › Disponibilidad).
 // Se guarda en appSettings/main.maleMotoRestriction y se lee en vivo. Por defecto: apagada.
 // Va en window porque este módulo se carga con distintas ?v= (varias instancias).
-export function setMaleMotoRestriction(on) {
-    if (typeof window !== 'undefined') window.__HR_MALE_MOTO_RULE = !!on;
-}
-export function isMaleMotoRestrictionOn() {
-    return typeof window !== 'undefined' && window.__HR_MALE_MOTO_RULE === true;
+// v.104 · Por ciudad: appSettings/main.maleMotoRestrictionByCity = { _all: bool, <zonaId>: bool }.
+// La ciudad gana sobre «_all». Sin dato: apagada.
+export function isMaleMotoRestrictionOn(zoneId) {
+    if (typeof window === 'undefined') return false;
+    const map = window.__HR_MALE_MOTO_RULE_MAP;
+    if (!map || typeof map !== 'object') return false;
+    const z = zoneId || window.activeServiceZoneId || '';
+    if (z && typeof map[z] === 'boolean') return map[z];
+    return map._all === true;
 }
 
-export function isMalePassengerMotoRideBlocked(profile) {
-    if (!isMaleMotoRestrictionOn()) return false;
+export function isMalePassengerMotoRideBlocked(profile, zoneId) {
+    if (!isMaleMotoRestrictionOn(zoneId)) return false;
     if (isUsMarket()) return false;
     const p = profile || (typeof window !== 'undefined' ? window.userProfile : null);
     if (!p) return false;
