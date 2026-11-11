@@ -1537,7 +1537,12 @@ export function isServiceTypeDisabledInCity(serviceType, zoneId, opts = {}) {
 export const DECRETO_91_2012_MSG =
     'Decreto 91-2012 se aplica de forma estricta en 34 municipios que se refiere a que 2 hombres no pueden circular en moto';
 
+// v.101 · Restricción desactivada por decisión del dueño: hombres y mujeres pueden pedir moto.
+// Para volver a activarla, poner MALE_MOTO_RESTRICTION_ON = true.
+const MALE_MOTO_RESTRICTION_ON = false;
+
 export function isMalePassengerMotoRideBlocked(profile) {
+    if (!MALE_MOTO_RESTRICTION_ON) return false;
     if (isUsMarket()) return false;
     const p = profile || (typeof window !== 'undefined' ? window.userProfile : null);
     if (!p) return false;
