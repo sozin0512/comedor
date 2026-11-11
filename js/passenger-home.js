@@ -288,7 +288,10 @@ function ensureHomeUi() {
                     e.preventDefault();
                     if (svcBtn.classList.contains('hrh-off')) {
                         const label = svcBtn.textContent.trim();
-                        try { showServiceUnavailableSheet(label, `${label} no está disponible en tu ciudad por ahora. Probá con otro servicio.`); } catch (_) {}
+                        const why = svcBtn.hasAttribute('data-hrh-decree')
+                            ? `${DECRETO_91_2012_MSG}. Probá con Taxi VIP o Taxi.`
+                            : `${label} no está disponible en tu ciudad por ahora. Probá con otro servicio.`;
+                        try { showServiceUnavailableSheet(label, why); } catch (_) {}
                         return;
                     }
                     window._hrHomePreferredService = svcBtn.getAttribute('data-hrh-svc');
@@ -500,9 +503,14 @@ function syncHomeCardsForCity() {
     if (!hub) return;
     const zoneId = getActiveCityId();
     // Círculos Moto / Taxi VIP / Taxi del inicio: en gris si no hay ese servicio en la ciudad
+    const maleMotoBlocked = isMalePassengerMotoRideBlocked(getUserProfile?.());
     hub.querySelectorAll('[data-hrh-svc]').forEach((b) => {
-        const off = isServiceTypeDisabledInCity(b.getAttribute('data-hrh-svc'), zoneId);
+        const svc = b.getAttribute('data-hrh-svc');
+        // v.103 · Moto en gris también cuando el admin activó el Decreto 91-2012 y el pasajero es hombre
+        const decree = svc === 'moto' && maleMotoBlocked;
+        const off = decree || isServiceTypeDisabledInCity(svc, zoneId);
         b.classList.toggle('hrh-off', off);
+        b.toggleAttribute('data-hrh-decree', decree);
         b.setAttribute('aria-disabled', off ? 'true' : 'false');
     });
     Object.keys(HOME_CARD_TYPES).forEach((mode) => {
@@ -614,6 +622,15 @@ function applyMode(mode) {
     const reenter = (document.body.dataset.passengerMode === mode) && mode !== 'home';
 
     document.body.dataset.passengerMode = mode;
+    // v.100 · Al cambiar de modo sin el buscador abierto, quitar medidas fijas que dejó el buscador
+    if (!document.body.classList.contains('trip-autocomplete-open')) {
+        try {
+            const pnl = document.getElementById('control-panel');
+            if (pnl && (pnl.style.getPropertyPriority('min-height') === 'important' || pnl.style.getPropertyPriority('top') === 'important')) {
+                window.hrClearPanelSearchInline?.(pnl);
+            }
+        } catch (_) {}
+    }
     document.body.classList.toggle('passenger-mode-home', mode === 'home');
     document.body.classList.toggle('passenger-mode-active', mode !== 'home');
     document.body.classList.toggle('passenger-mode-trip', mode === 'trip');

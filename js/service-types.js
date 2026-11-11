@@ -1537,7 +1537,22 @@ export function isServiceTypeDisabledInCity(serviceType, zoneId, opts = {}) {
 export const DECRETO_91_2012_MSG =
     'Decreto 91-2012 se aplica de forma estricta en 34 municipios que se refiere a que 2 hombres no pueden circular en moto';
 
-export function isMalePassengerMotoRideBlocked(profile) {
+// v.102 · La restricción la prende / apaga el admin (Panel Viajes › Disponibilidad).
+// Se guarda en appSettings/main.maleMotoRestriction y se lee en vivo. Por defecto: apagada.
+// Va en window porque este módulo se carga con distintas ?v= (varias instancias).
+// v.104 · Por ciudad: appSettings/main.maleMotoRestrictionByCity = { _all: bool, <zonaId>: bool }.
+// La ciudad gana sobre «_all». Sin dato: apagada.
+export function isMaleMotoRestrictionOn(zoneId) {
+    if (typeof window === 'undefined') return false;
+    const map = window.__HR_MALE_MOTO_RULE_MAP;
+    if (!map || typeof map !== 'object') return false;
+    const z = zoneId || window.activeServiceZoneId || '';
+    if (z && typeof map[z] === 'boolean') return map[z];
+    return map._all === true;
+}
+
+export function isMalePassengerMotoRideBlocked(profile, zoneId) {
+    if (!isMaleMotoRestrictionOn(zoneId)) return false;
     if (isUsMarket()) return false;
     const p = profile || (typeof window !== 'undefined' ? window.userProfile : null);
     if (!p) return false;

@@ -2640,6 +2640,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             };
             window.restackStatusBarShield = restackStatusBarShield;
 
+            window.hrClearPanelSearchInline = (p) => clearControlPanelSearchInline(p || document.getElementById('control-panel'));
             const clearControlPanelSearchInline = (panel) => {
                 if (!panel) return;
                 [
@@ -2684,6 +2685,16 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     if (!open) {
                         try { shield.hidePopover?.(); } catch (_) {}
                         try { shield.style.removeProperty('height'); } catch (_) {}
+                        // v.100 · Si el buscador se cerró por otro camino (volver al inicio, cambiar de modo),
+                        // quitar las medidas fijas que le puso al panel (arriba/abajo/alto mínimo).
+                        // Antes quedaban pegadas: panel estirado, hueco blanco y franja gris abajo.
+                        try {
+                            const pnl = document.getElementById('control-panel');
+                            if (pnl && (pnl.style.getPropertyPriority('min-height') === 'important'
+                                || pnl.style.getPropertyPriority('top') === 'important')) {
+                                clearControlPanelSearchInline(pnl);
+                            }
+                        } catch (_) {}
                         return;
                     }
 
