@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.109">
+    <meta name="hr-app-version" content="2026.10.26.110">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -67,14 +67,15 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.109">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.110">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.109">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.110">
+    <link rel="stylesheet" id="hr-vehicle-wizard-css" href="css/vehicle-wizard.css?v=2026.10.26.110">
     <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.59">
     <link rel="stylesheet" href="css/pedido-doble.css?v=2026.10.26.59">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.109">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.109">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.110">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.110">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -122,7 +123,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.109"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.110"></script>
     <script defer src="js/busqueda-f.js?v=2026.10.26.59"></script>
     <script type="module" src="js/pedido-doble.js?v=2026.10.26.59"></script>
     <script type="module" src="js/user-city.js?v=2026.10.26.59"></script>
@@ -442,10 +443,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.109';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.110';
         (function () {
             try {
-                var build = '2026.10.26.109';
+                var build = '2026.10.26.110';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -621,6 +622,7 @@
                     <span class="ops-nav-label">Sistema</span>
                     <button type="button" onclick="window.renderAdminTab('stats')" id="tab-stats" data-admin-tab="stats" class="ops-nav-item admin-tab-btn"><i class="fas fa-chart-line"></i><span>Estadísticas</span></button>
                     <button type="button" onclick="window.renderAdminTab('customization')" id="tab-customization" data-admin-tab="customization" class="ops-nav-item admin-tab-btn"><i class="fas fa-palette"></i><span>Personalizar</span></button>
+                    <button type="button" onclick="window.renderAdminTab('ride-categories')" id="tab-ride-categories" data-admin-tab="ride-categories" class="ops-nav-item admin-tab-btn"><i class="fas fa-layer-group"></i><span>Categorías</span></button>
                     <button type="button" onclick="window.renderAdminTab('apk')" id="tab-apk" data-admin-tab="apk" class="ops-nav-item admin-tab-btn"><i class="fab fa-android"></i><span>App Android</span></button>
                     <button type="button" onclick="window.renderAdminTab('testing')" id="tab-testing" data-admin-tab="testing" class="ops-nav-item admin-tab-btn"><i class="fas fa-vial"></i><span>Pruebas</span></button>
                 </div>
