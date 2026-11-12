@@ -19,6 +19,8 @@ const HN_TZ = 'America/Tegucigalpa';
 export const DEFAULT_FIXED_FARES_CONFIG = {
     minFare: 65,
     minFareEnabled: true,
+    /** v.106 · El viaje mínimo NO aplica a moto salvo que el admin lo active. */
+    minFareMoto: false,
     minFareHubLat: 14.4513,
     minFareHubLng: -87.6374,
     minFareHubRadiusKm: 40,
@@ -280,6 +282,7 @@ export function normalizeFixedFaresConfig(raw) {
     return {
         minFare: Math.max(0, toNum(src.minFare, base.minFare)),
         minFareEnabled: src.minFareEnabled === false ? false : true,
+        minFareMoto: src.minFareMoto === true,
         minFareHubLat: toNum(src.minFareHubLat, base.minFareHubLat),
         minFareHubLng: toNum(src.minFareHubLng, base.minFareHubLng),
         minFareHubRadiusKm: Math.max(1, toNum(src.minFareHubRadiusKm, base.minFareHubRadiusKm)),
@@ -633,8 +636,10 @@ export function resolveFixedRouteFare({
         const best = valid[0];
         return finishFixed(best.dayPrice, best.ruleId, best.label);
     }
-    // 3) Viaje mínimo (también puede subir de noche si hay recargo activo)
-    if (cfg.minFareEnabled && cfg.minFare > 0) {
+    // 3) Viaje mínimo (también puede subir de noche si hay recargo activo).
+    //    Moto: solo si el admin lo activó (minFareMoto).
+    const isMoto = String(serviceType || '').toLowerCase() === 'moto';
+    if (cfg.minFareEnabled && cfg.minFare > 0 && (!isMoto || cfg.minFareMoto === true)) {
         const inMarket = isMinFareMarketTrip({
             originLat, originLng, destLat, destLng,
             originText: oTxt, destText: dTxt, serviceZoneId,
