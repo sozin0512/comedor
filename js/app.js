@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.105";
+} from "./auth-credentials.js?v=2026.10.26.107";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.105";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.105";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.107";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.107";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.105";
+} from "./market.js?v=2026.10.26.107";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.105";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.105";
+} from "./phone-utils.js?v=2026.10.26.107";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.107";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.105";
+} from "./referrals.js?v=2026.10.26.107";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.105";
+} from "./zones.js?v=2026.10.26.107";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.105";
+} from "./trip-notifications.js?v=2026.10.26.107";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.105";
+} from "./notification-tones.js?v=2026.10.26.107";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.105";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.107";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.105";
+} from "./passenger-alerts.js?v=2026.10.26.107";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.105";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.105";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.105";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.105";
+} from "./passenger-verification.js?v=2026.10.26.107";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.107";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.107";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.107";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.105";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.107";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.105";
+} from "./feedback.js?v=2026.10.26.107";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.105";
+} from "./greetings.js?v=2026.10.26.107";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,7 +148,7 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.26.105";
+} from "./service-types.js?v=2026.10.26.107";
 import {
     bookingPrimaryAction,
     serviceStepCopy,
@@ -158,8 +158,8 @@ import {
     shouldQuoteRouteNow,
     scrollDeltaToReveal,
 } from "./booking-primary-action.mjs?v=2026.10.26.104";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.105";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.105";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.107";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.107";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -184,23 +184,23 @@ import {
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml,
     usesTimedExclusiveOffer
-} from "./store-delivery-rotation.js?v=2026.10.26.105";
+} from "./store-delivery-rotation.js?v=2026.10.26.107";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.105";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.107";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.105";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.105";
+} from "./service-availability.js?v=2026.10.26.107";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.107";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.105";
+} from "./trip-wait.js?v=2026.10.26.107";
 import {
     scheduledForMs as schedUiMs,
     formatClock as schedFormatClock,
@@ -222,12 +222,12 @@ import {
     companionVisibility as schedCompanionVisibility,
     isLocking as schedIsLocking,
     ANDROID_NAV as SCHED_ANDROID_NAV
-} from "./scheduled-trip-driver-ui.js?v=2026.10.26.105";
+} from "./scheduled-trip-driver-ui.js?v=2026.10.26.107";
 import {
     isWaitingScheduledTrip,
     pickWaitingScheduledTrip,
     WAITING_LOCK_TOAST
-} from "./scheduled-trip-client-lock.js?v=2026.10.26.105";
+} from "./scheduled-trip-client-lock.js?v=2026.10.26.107";
 import "./passenger-waiting-lock.js?v=2026.10.26.104";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
@@ -245,49 +245,49 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
-} from "./driver-vehicles-v2.js?v=2026.10.26.105";
+} from "./driver-vehicles-v2.js?v=2026.10.26.107";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.105";
+} from "./route-fixed-fares.js?v=2026.10.26.107";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.105";
+} from "./commission-free-day.js?v=2026.10.26.107";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.105";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.105";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.105";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.105";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.105";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.105";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.105";
+} from "./route-conditions.js?v=2026.10.26.107";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.107";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.107";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.107";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.107";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.107";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.107";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.105";
+} from "./demand-heatmap.js?v=2026.10.26.107";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.105";
+} from "./ops-fleet-map.js?v=2026.10.26.107";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.105";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.105";
+} from "./live-trip-keepalive.js?v=2026.10.26.107";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.107";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.105";
+} from "./driver-session.js?v=2026.10.26.107";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -296,7 +296,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.105";
+} from "./session-keepalive.js?v=2026.10.26.107";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -386,32 +386,32 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.105";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.107";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.105";
+} from "./auth-ui.js?v=2026.10.26.107";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.105";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.105";
+} from "./age-verification.js?v=2026.10.26.107";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.107";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.105";
-import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.105";
-import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.105";
+} from "./trip-experience.js?v=2026.10.26.107";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.107";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.107";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.105";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.105";
+} from "./support-tickets.js?v=2026.10.26.107";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.107";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.105";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.105";
-import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.105";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.107";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.107";
+import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.107";
 
 // ==================== CONFIRMACIÓN IN-APP (reemplaza window.confirm nativo) ====================
 // En el APK (Android WebView) el confirm() nativo bloquea el hilo JS y a veces se queda pegado.
@@ -2105,6 +2105,10 @@ window.renderAdminFixedFaresUI = () => {
     const nightEn = document.getElementById('admin-night-fare-enabled');
     const nightPct = document.getElementById('admin-night-fare-percent');
     if (minEn) minEn.checked = !!draft.minFareEnabled;
+    const minMoto = document.getElementById('admin-min-fare-moto');
+    if (minMoto) minMoto.checked = draft.minFareMoto === true;
+    const minVipAll = document.getElementById('admin-min-fare-vip-all');
+    if (minVipAll) minVipAll.checked = draft.minFareVipAllCities !== false;
     if (minVal) minVal.value = draft.minFare;
     if (minRad) minRad.value = draft.minFareHubRadiusKm;
     if (nightEn) nightEn.checked = draft.nightSurchargeEnabled !== false;
@@ -2732,6 +2736,8 @@ window.adminSaveFixedFares = async (btn) => {
     }
     const draft = getAdminFixedFaresDraft();
     draft.minFareEnabled = !!document.getElementById('admin-min-fare-enabled')?.checked;
+    draft.minFareMoto = !!document.getElementById('admin-min-fare-moto')?.checked;
+    draft.minFareVipAllCities = !!document.getElementById('admin-min-fare-vip-all')?.checked;
     draft.minFare = Math.max(0, parseFloat(document.getElementById('admin-min-fare')?.value || draft.minFare) || 0);
     draft.minFareHubRadiusKm = Math.max(1, parseFloat(document.getElementById('admin-min-fare-radius')?.value || draft.minFareHubRadiusKm) || 40);
     draft.nightSurchargeEnabled = !!document.getElementById('admin-night-fare-enabled')?.checked;
@@ -15059,6 +15065,16 @@ if (document.readyState === 'loading') {
                                 <span class="text-[10px] font-bold text-slate-500">en radio del hub (km)</span>
                                 <input type="number" id="admin-min-fare-radius" min="1" max="120" step="1" value="${ff.minFareHubRadiusKm}" class="ops-input w-20 text-center">
                             </div>
+                            <label class="flex items-center gap-2 mt-2 cursor-pointer">
+                                <input type="checkbox" id="admin-min-fare-moto" class="w-4 h-4 accent-emerald-500" ${ff.minFareMoto === true ? 'checked' : ''}>
+                                <span class="text-xs font-bold text-white">Aplicar también a Moto</span>
+                                <span class="text-[10px] font-bold text-slate-500">(desmarcado: la moto cobra solo base + km)</span>
+                            </label>
+                            <label class="flex items-center gap-2 mt-2 cursor-pointer">
+                                <input type="checkbox" id="admin-min-fare-vip-all" class="w-4 h-4 accent-emerald-500" ${ff.minFareVipAllCities !== false ? 'checked' : ''}>
+                                <span class="text-xs font-bold text-white">Taxi VIP: en todas las ciudades</span>
+                                <span class="text-[10px] font-bold text-slate-500">(desmarcado: solo dentro del radio del hub)</span>
+                            </label>
                             <p class="text-[10px] text-slate-500 font-bold mt-2">Hub: ${ff.minFareHubLat.toFixed(4)}, ${ff.minFareHubLng.toFixed(4)} (Comayagua por defecto)</p>
                             <div class="mt-3 pt-3 border-t border-emerald-900/50">
                                 <p class="text-xs font-black text-violet-300 mb-2">Recargo nocturno (puntos caros + mínimo)</p>
