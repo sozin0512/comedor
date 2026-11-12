@@ -246,6 +246,12 @@ import {
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
 } from "./driver-vehicles-v2.js?v=2026.10.26.123";
+import { comfortReviewHtml, normalizeCutoffs } from "./vehicle-categories.js?v=2026.10.26.123";
+import {
+    openDriverVehicleWizard, closeDriverVehicleWizard, maybeShowVehicleUpdateNotice,
+    renderRideCutoffAdmin, readRideCutoffForm, ensureCss as ensureVehicleWizardCss,
+    buildApprovedComfortPatch
+} from "./driver-vehicle-wizard.js?v=2026.10.26.123";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
@@ -3191,9 +3197,116 @@ window.hideAuthSetupScreen = () => {
     setupScreen.style.display = 'none';
 };
 
+function fillLegacyDriverForm(collected) {
+    const set = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && val != null) el.value = val;
+    };
+    window.selectDriverVehicleType?.(collected.type || 'auto');
+    set('car-model', collected.modelText || '');
+    set('car-plate', collected.plate || '');
+    set('driver-license', collected.licenseNumber || '');
+    set('vehicle-inspection', collected.inspection || '');
+    set('vehicle-cargo-capacity', collected.cargo || '');
+    set('pen-code', collected.penCode || '');
+    set('policiales-code', collected.policialesCode || '');
+    set('full-name', collected.name || '');
+    set('phone-number', collected.phone || '');
+    set('emergency-contact-setup', collected.emergency || '');
+    set('driver-id-number', collected.dni || '');
+    set('driver-gender', collected.gender || '');
+    set('driver-birthdate', collected.birthDate || '');
+    set('referral-code-input', collected.referral || '');
+    Object.entries(collected.photos || {}).forEach(([slot, url]) => {
+        if (url && String(url).startsWith('data:')) window.__hrApplySetupPhoto?.(slot, url);
+    });
+}
+
+async function loadRideCutoffs() {
+    if (window.__hrRideCutoffs) return window.__hrRideCutoffs;
+    try {
+        const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'rideCategories'));
+        window.__hrRideCutoffs = normalizeCutoffs(snap.exists() ? snap.data() : null);
+    } catch (_) {
+        window.__hrRideCutoffs = normalizeCutoffs(null);
+    }
+    return window.__hrRideCutoffs;
+}
+
+window.submitDriverVehicleWizard = async (collected, ctx = {}) => {
+    if (ctx.mode === 'update') {
+        const before = window.userProfile?.approvalStatus;
+        const result = buildApprovedComfortPatch(window.userProfile, {
+            ...collected,
+            yearConfirmed: true,
+            cutoffs: ctx.cutoffs || window.__hrRideCutoffs
+        });
+        if (!result.ok) throw new Error(result.message);
+        if (Object.prototype.hasOwnProperty.call(result.patch, 'approvalStatus')) {
+            throw new Error('La actualización no puede cambiar la aprobación.');
+        }
+        const uid = window.currentUser?.uid;
+        if (!uid) throw new Error('Tenés que tener la sesión abierta.');
+        await window.ownerProfilePatch(uid, result.patch);
+        window.userProfile = {
+            ...(window.userProfile || {}),
+            ...result.patch,
+            approvalStatus: before || 'approved'
+        };
+        window.showToast?.('Listo. Tu vehículo quedó actualizado y seguís aprobado.', 'success');
+        closeDriverVehicleWizard();
+        return;
+    }
+    fillLegacyDriverForm(collected);
+    window.__hrPendingVehicleComfort = {
+        yearConfirmed: true,
+        year: collected.year,
+        hasAC: collected.hasAC,
+        seats: collected.seats,
+        suggestedCategory: collected.suggestedCategory
+    };
+    window.__hrLastProfileSave = '';
+    await window.saveProfile?.();
+    if (window.__hrLastProfileSave !== 'ok') {
+        throw new Error('No se envió el registro. Revisá los datos y las fotos.');
+    }
+    closeDriverVehicleWizard();
+};
+
+window.openDriverVehicleWizard = async (options = {}) => {
+    const cutoffs = options.cutoffs || await loadRideCutoffs();
+    const mode = options.mode === 'update' ? 'update' : 'register';
+    return openDriverVehicleWizard({
+        mode,
+        profile: options.profile || window.userProfile || {},
+        cutoffs,
+        onSubmit: (collected, ctx) => window.submitDriverVehicleWizard(collected, ctx),
+        onClose: () => {
+            if (mode === 'register' && window.driverVehicleSetupMode !== 'add') {
+                window.cancelSetupAndLogout?.();
+            }
+        }
+    });
+};
+
+window.maybeShowVehicleUpdateNotice = async (profile) => {
+    const cutoffs = await loadRideCutoffs().catch(() => null);
+    return maybeShowVehicleUpdateNotice(profile || window.userProfile, {
+        cutoffs,
+        onSubmit: (collected, ctx) => window.submitDriverVehicleWizard(collected, ctx)
+    });
+};
+
 window.showDriverSetupScreen = () => {
     const setupScreen = document.getElementById('setup-screen');
     if (!setupScreen) return;
+    if (window.driverVehicleSetupMode !== 'add') {
+        setupScreen.classList.add('hidden');
+        setupScreen.classList.remove('auth-screen-open');
+        setupScreen.style.display = 'none';
+        window.openDriverVehicleWizard?.({ mode: 'register', profile: window.userProfile || {} });
+        return;
+    }
     if (!setupScreen.querySelector('#setup-form-scroll')) {
         setupScreen.innerHTML = driverSetupTemplate || setupScreen.innerHTML;
     }
@@ -14938,6 +15051,35 @@ if (document.readyState === 'loading') {
                 return;
             }
 
+            if (role === 'ride-categories') {
+                ensureVehicleWizardCss();
+                const cutoffs = await loadRideCutoffs().catch(() => normalizeCutoffs(null));
+                window.__hrRideCutoffs = null;
+                const fresh = await loadRideCutoffs().catch(() => cutoffs);
+                container.innerHTML = `<div class="p-4">${renderRideCutoffAdmin(fresh)}</div>`;
+                container.querySelector('#rc-save')?.addEventListener('click', async () => {
+                    const msg = container.querySelector('#rc-msg');
+                    const btn = container.querySelector('#rc-save');
+                    if (btn) btn.disabled = true;
+                    try {
+                        const next = readRideCutoffForm(container);
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'rideCategories'), {
+                            ...next,
+                            updatedAt: Date.now(),
+                            updatedBy: currentUser?.uid || null
+                        }, { merge: true });
+                        window.__hrRideCutoffs = next;
+                        if (msg) msg.textContent = 'Guardado. Los conductores ven estos cortes al calcular la categoría.';
+                    } catch (e) {
+                        if (msg) msg.textContent = 'No se pudo guardar. Solo el personal puede cambiar estos cortes.';
+                        console.warn('ride cutoffs', e);
+                    } finally {
+                        if (btn) btn.disabled = false;
+                    }
+                });
+                return;
+            }
+
             // === PESTAÑA: PERSONALIZACIÓN (logo, push, tonos de notificación) ===
             if (role === 'customization') {
                 const U = window.OpsUi;
@@ -15765,6 +15907,7 @@ if (document.readyState === 'loading') {
                         ${u.referralCode ? `<p class="text-emerald-300 text-xs font-black mt-1"><i class="fas fa-gift"></i> CÓDIGO REFERIDO: <span class="font-mono tracking-widest">${u.referralCode}</span></p>` : ''}
                         ${getDriverVehicleBadgeHtml(u.vehicleType || 'auto')}
                         ${u.vehicle ? `<p class="text-blue-400 text-xs font-bold mt-1">${getDriverVehicleEmoji(u.vehicleType || 'auto')} ${u.vehicle.model} — Placa: ${u.vehicle.plate}${u.vehicle.cargoCapacity ? ` · ${u.vehicle.cargoCapacity}` : ''}</p>` : ''}
+                        ${role === 'driver' ? comfortReviewHtml(u) : ''}
                         ${u.payoutBank ? `
                             <div class="mt-1 flex items-center gap-1">
                                 <p class="text-emerald-300 text-xs font-bold">🏦 ${u.payoutBank} · ${u.payoutAccount || 'sin n°'} (${u.payoutHolder || u.name || ''})</p>
@@ -23944,6 +24087,7 @@ if (document.readyState === 'loading') {
                             ${contactEmail ? `<a href="${getGmailComposeLink(contactEmail)}" target="_blank" rel="noopener" title="Escribir por Gmail" class="text-blue-700 font-bold break-all">${contactEmail}</a>` : '<span class="text-gray-500">Sin correo</span>'}
                         </p>
                     </div>
+                    ${comfortReviewHtml(userData)}
                 `;
 
                 // === FOTOS DE REGISTRO (para conductores) - con vista y descarga individual ===
@@ -26426,6 +26570,10 @@ if (document.readyState === 'loading') {
                         ['Tipo', u.vehicleType],
                         ['Marca/Modelo', vehicle.model],
                         ['Placa', vehicle.plate],
+                        ['Año', u.vehicleYear || vehicle.year],
+                        ['Aire acondicionado', (u.hasAC === true || vehicle.hasAC === true) ? 'Sí' : ((u.hasAC === false || vehicle.hasAC === false) ? 'No' : '')],
+                        ['Asientos', u.seats || vehicle.seats],
+                        ['Categoría sugerida', u.suggestedCategory || vehicle.suggestedCategory],
                         ['Licencia', u.license],
                         ['Revisión Vehicular', u.inspection],
                     ];
@@ -29408,8 +29556,12 @@ window.saveProfileChanges = async () => {
                 const cls = meta.imgClass || 'w-full h-full object-cover';
                 el.innerHTML = `<img src="${dataUrl}" alt="" class="${cls}">`;
             }
+            try {
+                document.dispatchEvent(new CustomEvent('hr-setup-photo', { detail: { slot, dataUrl } }));
+            } catch (_) {}
             window.showToast?.('Foto lista', 'success');
         }
+        window.__hrApplySetupPhoto = applySetupPhoto;
 
         window.resetDriverSetupPhotos = () => {
             profilePhotoBase64 = helmetPhotoBase64 = null;
@@ -29833,6 +29985,7 @@ window.saveProfileChanges = async () => {
         };
 
         window.saveProfile = async () => {
+            window.__hrLastProfileSave = 'start';
             if (userRole === 'driver' && window.driverVehicleSetupMode === 'add') {
                 return window.saveAdditionalDriverVehicle();
             }
@@ -29843,14 +29996,23 @@ window.saveProfileChanges = async () => {
             const gender = document.getElementById('driver-gender')?.value || '';
             const birthDate = document.getElementById('driver-birthdate')?.value || '';
 
-            if (!name || !phone) return window.showToast("Nombre y teléfono requeridos.");
+            if (!name || !phone) {
+                window.__hrLastProfileSave = 'invalid';
+                return window.showToast("Nombre y teléfono requeridos.");
+            }
             
             const ageCheck = validateRegistrationAge(birthDate);
-            if (!ageCheck.ok) return window.showToast(ageCheck.message);
+            if (!ageCheck.ok) {
+                window.__hrLastProfileSave = 'invalid';
+                return window.showToast(ageCheck.message);
+            }
 
             if (userRole === 'driver') {
                 const vehicleCheck = validateDriverVehicleForm(true);
-                if (!vehicleCheck.ok) return window.showToast(vehicleCheck.message);
+                if (!vehicleCheck.ok) {
+                    window.__hrLastProfileSave = 'invalid';
+                    return window.showToast(vehicleCheck.message);
+                }
             }
 
             // v.42: ciudad real por GPS al registrarse (antes quedaba la de defecto «Comayagua»)
@@ -29883,6 +30045,19 @@ window.saveProfileChanges = async () => {
                     inspection: document.getElementById('vehicle-inspection').value.trim() || 'Sin especificar',
                     type: data.vehicleType
                 };
+                const comfort = window.__hrPendingVehicleComfort;
+                if (comfort?.yearConfirmed && comfort.year) {
+                    data.vehicleYear = Number(comfort.year);
+                    data.hasAC = comfort.hasAC === true;
+                    data.seats = Number(comfort.seats);
+                    data.suggestedCategory = comfort.suggestedCategory || null;
+                    data.vehicleCategoryConfirmed = true;
+                    data.vehicleCategoryUpdatedAt = Date.now();
+                    data.vehicle.year = data.vehicleYear;
+                    data.vehicle.hasAC = data.hasAC;
+                    data.vehicle.seats = data.seats;
+                    data.vehicle.suggestedCategory = data.suggestedCategory;
+                }
                 data.identity = document.getElementById('driver-id-number').value.trim() || 'N/D';
                 data.approvalStatus = 'pending';
                 data.resubmitRequested = false;
@@ -29986,6 +30161,8 @@ window.saveProfileChanges = async () => {
                     console.warn('Post-registro conductor (referido/alerta):', postErr);
                 }
 
+                window.__hrLastProfileSave = 'ok';
+                window.__hrPendingVehicleComfort = null;
                 if (switchingFromPassenger && existingProfile.termsAccepted) {
                     window.showToast('Registro de conductor enviado. Espera la aprobación del administrador.', 'success');
                     setTimeout(() => location.reload(), 600);
@@ -30000,6 +30177,7 @@ window.saveProfileChanges = async () => {
                     window.showTermsAcceptance?.();
                 }, 500);
             } catch (e) {
+                window.__hrLastProfileSave = 'error';
                 console.error('saveProfile:', e);
                 const code = e?.code || '';
                 const msg = String(e?.message || '');
@@ -32064,6 +32242,9 @@ onAuthStateChanged(auth, async (user) => {
 
                 window.hideAuthSetupScreen?.();
                 setElementDisplay('app-interface', 'flex');
+                if (profile.role === 'driver') {
+                    setTimeout(() => window.maybeShowVehicleUpdateNotice?.(profile), 1400);
+                }
                 resetAuthSubmitButton();
                 updatePushEnableButton();
                 promptForNotificationsPersistently();
@@ -47020,6 +47201,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                                 <div><span class="text-gray-500">Identidad:</span> <span class="font-bold">${u.identity || 'N/D'}</span></div>
                                 <div><span class="text-gray-500">${getDriverVehicleNoun(u.vehicleType || 'auto')}:</span> <span class="font-bold">${v.model || 'N/D'} — ${v.plate || 'N/D'}${v.cargoCapacity ? ` · ${v.cargoCapacity}` : ''}</span></div>
                             </div>
+                            ${comfortReviewHtml(u)}
                         </div>
                     </div>
                     <div class="mt-4">

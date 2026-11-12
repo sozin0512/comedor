@@ -130,6 +130,17 @@ export function syncLegacyVehicleFieldsFromActive(profile) {
     if (active.documentsValidUntil) {
         profile.documentsValidUntil = active.documentsValidUntil;
     }
+    const veh = profile.vehicle && typeof profile.vehicle === 'object' ? profile.vehicle : null;
+    if (veh) {
+        if (veh.year == null && profile.vehicleYear != null) veh.year = profile.vehicleYear;
+        if (veh.hasAC == null && (profile.hasAC === true || profile.hasAC === false)) veh.hasAC = profile.hasAC;
+        if (veh.seats == null && profile.seats != null) veh.seats = profile.seats;
+        if (!veh.suggestedCategory && profile.suggestedCategory) veh.suggestedCategory = profile.suggestedCategory;
+        if (veh.year != null && veh.year !== '') profile.vehicleYear = Number(veh.year);
+        if (veh.hasAC === true || veh.hasAC === false) profile.hasAC = veh.hasAC;
+        if (veh.seats != null && veh.seats !== '') profile.seats = Number(veh.seats);
+        if (veh.suggestedCategory) profile.suggestedCategory = veh.suggestedCategory;
+    }
     return profile;
 }
 
@@ -229,7 +240,7 @@ export function buildDriverApprovalFields(profile, validUntilIso, onlyVehicleId 
 
     syncLegacyVehicleFieldsFromActive(next);
 
-    return {
+    const out = {
         approvalStatus: next.approvalStatus || 'approved',
         vehicles: next.vehicles,
         activeVehicleId: next.activeVehicleId,
@@ -247,6 +258,12 @@ export function buildDriverApprovalFields(profile, validUntilIso, onlyVehicleId 
         resubmitRequested: false,
         autoSuspended: false,
     };
+    if (next.vehicleYear != null && next.vehicleYear !== '') out.vehicleYear = Number(next.vehicleYear);
+    if (next.hasAC === true || next.hasAC === false) out.hasAC = next.hasAC;
+    if (next.seats != null && next.seats !== '') out.seats = Number(next.seats);
+    if (next.suggestedCategory) out.suggestedCategory = next.suggestedCategory;
+    if (next.vehicleCategoryConfirmed === true) out.vehicleCategoryConfirmed = true;
+    return out;
 }
 
 /**

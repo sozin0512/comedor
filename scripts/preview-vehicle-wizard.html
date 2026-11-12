@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Vista previa · vehículo</title>
+    <link rel="stylesheet" href="../css/vehicle-wizard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        html, body { margin: 0; height: 100%; background: #e8eef5; }
+        body { font-family: Inter, system-ui, sans-serif; }
+    </style>
+</head>
+<body>
+<script type="module">
+import { mountDriverVehicleWizard, mountVehicleUpdateNotice, renderRideCutoffAdmin } from '../js/driver-vehicle-wizard.js';
+import { DEFAULT_RIDE_CUTOFFS } from '../js/vehicle-categories.js';
+
+const screen = new URLSearchParams(location.search).get('screen') || 'step1';
+const svg = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="260"><rect fill="#dbeafe" width="400" height="260"/><rect x="36" y="96" width="328" height="86" rx="18" fill="#3b82f6"/><rect x="150" y="62" width="120" height="48" rx="10" fill="#bfdbfe"/><circle cx="110" cy="190" r="22" fill="#1e3a8a"/><circle cx="290" cy="190" r="22" fill="#1e3a8a"/></svg>');
+const photo = `data:image/svg+xml,${svg}`;
+const profile = {
+    uid: 'preview',
+    role: 'driver',
+    approvalStatus: 'approved',
+    name: 'Ana López',
+    phone: '+504 9999-0000',
+    vehicleType: 'auto',
+    vehicle: { model: 'Toyota Corolla 2016', plate: 'HAB 1234', type: 'auto' }
+};
+
+if (screen === 'notice') {
+    document.body.style.background = '#cbd5e1';
+    mountVehicleUpdateNotice(document.body, {});
+} else if (screen === 'admin') {
+    document.body.style.background = '#0b1220';
+    document.body.innerHTML = `<div style="padding:12px 12px 28px;max-width:420px;margin:0 auto">${renderRideCutoffAdmin(DEFAULT_RIDE_CUTOFFS)}</div>`;
+} else if (screen === 'update1' || screen === 'update2') {
+    mountDriverVehicleWizard(document.body, {
+        preview: true,
+        ignoreDraft: true,
+        mode: 'update',
+        profile,
+        cutoffs: DEFAULT_RIDE_CUTOFFS,
+        initialStep: screen === 'update2' ? 2 : 1,
+        seed: screen === 'update2' ? { year: 2016, hasAC: true, seats: 4, brand: 'Toyota', model: 'Corolla', type: 'auto', plate: 'HAB 1234' } : { brand: 'Toyota', model: 'Corolla', type: 'auto', plate: 'HAB 1234' }
+    });
+} else {
+    const step = Number(String(screen).replace('step', '')) || 1;
+    const photos = {};
+    const all = ['extFront', 'extRear', 'plate', 'int1', 'int2', 'int3', 'licenseFront', 'licenseBack', 'inspection', 'antecedentes', 'policiales', 'face'];
+    if (step === 3) ['extFront', 'extRear', 'plate'].forEach((s) => { photos[s] = photo; });
+    if (step === 4) ['licenseFront', 'licenseBack'].forEach((s) => { photos[s] = photo; });
+    if (step >= 5) all.forEach((s) => { photos[s] = photo; });
+    mountDriverVehicleWizard(document.body, {
+        preview: true,
+        ignoreDraft: true,
+        mode: 'register',
+        profile: { uid: 'nuevo', role: 'driver', name: 'Ana López', phone: '+504 9999-0000' },
+        cutoffs: DEFAULT_RIDE_CUTOFFS,
+        initialStep: step,
+        seed: {
+            type: 'auto',
+            brand: 'Toyota',
+            model: 'Corolla',
+            plate: 'HAB 1234',
+            year: step >= 2 ? 2016 : null,
+            hasAC: step >= 2 ? true : null,
+            seats: step >= 2 ? 4 : null,
+            photos,
+            licenseNumber: step >= 4 ? '0801-1990-12345' : '',
+            inspection: step >= 5 ? 'RV-2026' : '',
+            penCode: step >= 5 ? 'PEN-4481' : '',
+            policialesCode: step >= 5 ? 'POL-2290' : '',
+            name: 'Ana López',
+            phone: '+504 9999-0000'
+        }
+    });
+}
+if (new URLSearchParams(location.search).get('advance') === '1') {
+    setTimeout(() => document.querySelector('[data-vw="next"]')?.click(), 60);
+}
+</script>
+</body>
+</html>

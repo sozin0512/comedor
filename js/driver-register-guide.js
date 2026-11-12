@@ -34,7 +34,7 @@ function typeMeta(type) {
     return map[type] || map.auto;
 }
 
-function photoItems(type) {
+export function photoItems(type) {
     if (type === 'moto') {
         return [
             'Foto tuya <b>con el casco puesto</b>',
