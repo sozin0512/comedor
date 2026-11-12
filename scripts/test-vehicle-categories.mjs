@@ -10,6 +10,10 @@ import {
     suggestRideCategory,
     photoCountFromGuideItems,
     vehiclePhotoSlots,
+    documentRows,
+    yearChoices,
+    placeYear,
+    registrationChecklist,
     buildApprovedComfortPatch,
     shouldAskVehicleUpdate,
     DEFAULT_RIDE_CUTOFFS,
@@ -124,6 +128,50 @@ eq('Más tarde aplaza', shouldAskVehicleUpdate(approved, { now: 1000, snoozeUnti
 eq('ya confirmó, no vuelve a pedir', shouldAskVehicleUpdate({ ...approved, vehicleCategoryConfirmed: true }), false);
 eq('pendiente no ve el aviso', shouldAskVehicleUpdate({ ...approved, approvalStatus: 'pending' }), false);
 eq('en viaje no interrumpe', shouldAskVehicleUpdate(approved, { inTrip: true }), false);
+
+const years = yearChoices(now);
+eq('la grilla empieza en 1995', years[0], 1995);
+eq('la grilla llega al año actual + 1', years[years.length - 1], 2027);
+ok('incluye años impares', years.includes(2006) && years.includes(2017));
+eq('2016 queda seleccionado en la grilla', placeYear(2016, now), { grid: 2016, other: '' });
+eq('1990 va en Otro', placeYear(1990, now), { grid: null, other: '1990' });
+
+const partial = {
+    type: 'auto',
+    brand: 'Toyota',
+    model: 'Corolla',
+    plate: 'HAB 1234',
+    year: 2016,
+    hasAC: true,
+    seats: 4,
+    name: 'Ana López',
+    phone: '+504 9999-0000',
+    licenseNumber: 'L-48291',
+    photos: { extFront: 'a', extRear: 'a', plate: 'a', licenseFront: 'a', licenseBack: 'a' }
+};
+const partialReport = registrationChecklist(partial, { now });
+eq('borrador parcial: 3 fotos', partialReport.photosDone, 3);
+eq('borrador parcial: 2 documentos', partialReport.docsDone, 2);
+eq('borrador parcial no se puede enviar', partialReport.canSubmit, false);
+ok('el resumen no inventa 5/5', !partialReport.lines.some((line) => line.text.includes('5/5')));
+ok('dice qué documentos faltan', partialReport.docsMissing.includes('Revisión vehicular') && partialReport.docsMissing.includes('Antecedentes penales'));
+ok('la selfie falta', partialReport.lines.some((line) => line.text === 'Selfie: falta'));
+
+const fullPhotos = {};
+vehiclePhotoSlots('auto').forEach((slot) => { fullPhotos[slot.slot] = 'a'; });
+documentRows().forEach((row) => { fullPhotos[row.slot] = 'a'; });
+fullPhotos.face = 'a';
+const fullReport = registrationChecklist({
+    ...partial,
+    inspection: 'RV-2026',
+    penCode: 'PEN-1',
+    policialesCode: 'POL-1',
+    photos: fullPhotos
+}, { now });
+eq('borrador completo: 6 fotos', fullReport.photosDone, 6);
+eq('borrador completo: 5 documentos', fullReport.docsDone, 5);
+eq('borrador completo sí se envía', fullReport.canSubmit, true);
+ok('el resumen completo dice 5/5', fullReport.lines.some((line) => line.text === 'Documentos: 5/5'));
 
 if (failed) {
     console.error(`${failed} pruebas fallaron`);

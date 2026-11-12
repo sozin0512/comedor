@@ -7,6 +7,8 @@
 export const BRAND_CHIPS = ['Toyota', 'Honda', 'Hyundai', 'Kia', 'Nissan', 'Otra'];
 export const KNOWN_BRANDS = ['Toyota', 'Honda', 'Hyundai', 'Kia', 'Nissan'];
 export const YEAR_CHIPS = [2005, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024];
+/** Años que se muestran uno por uno. Los más viejos van en «Otro». */
+export const YEAR_GRID_START = 1995;
 export const SEAT_CHIPS = [4, 5, 7];
 export const VEHICLE_TYPES = ['auto', 'taxi', 'moto', 'paila', 'camion', 'grua'];
 
@@ -68,6 +70,22 @@ export function maxVehicleYear(now = new Date()) {
 export function isPlausibleVehicleYear(year, now = new Date()) {
     const y = Number(year);
     return Number.isInteger(y) && y >= MIN_VEHICLE_YEAR && y <= maxVehicleYear(now);
+}
+
+/** Cada año desde 1995 hasta el año actual + 1. */
+export function yearChoices(now = new Date()) {
+    const end = maxVehicleYear(now);
+    const years = [];
+    for (let y = YEAR_GRID_START; y <= end; y += 1) years.push(y);
+    return years;
+}
+
+/** Si el año está en la grilla, queda seleccionado ahí. Si es más viejo, va en «Otro». */
+export function placeYear(year, now = new Date()) {
+    const y = Number(year);
+    if (!isPlausibleVehicleYear(y, now)) return { grid: null, other: '' };
+    if (y >= YEAR_GRID_START && y <= maxVehicleYear(now)) return { grid: y, other: '' };
+    return { grid: null, other: String(y) };
 }
 
 /**
@@ -218,6 +236,77 @@ export function photoCountFromGuideItems(items) {
         const count = m ? Number(m[1]) : 1;
         return n + (count > 0 ? count : 1);
     }, 0);
+}
+
+function photoNoun(type) {
+    if (type === 'moto') return 'de la moto';
+    if (type === 'taxi') return 'del taxi';
+    if (type === 'paila') return 'de la paila';
+    if (type === 'camion') return 'del camión';
+    if (type === 'grua') return 'de la grúa';
+    return 'del carro';
+}
+
+/**
+ * Resumen del paso final a partir del borrador real.
+ * Un estado con 2 de 5 documentos no puede decir 5/5, y no deja enviar.
+ */
+export function registrationChecklist(state = {}, { now = new Date(), cutoffs } = {}) {
+    const type = VEHICLE_TYPES.includes(state.type) ? state.type : 'auto';
+    const slots = vehiclePhotoSlots(type);
+    const photosMissing = slots.filter((slot) => !state.photos?.[slot.slot]).map((slot) => slot.label);
+    const docs = documentRows();
+    const docsMissing = docs.filter((row) => {
+        if (!state.photos?.[row.slot]) return true;
+        if (row.needsCode && !String(state[row.codeKey] || '').trim()) return true;
+        return false;
+    }).map((row) => row.label);
+    const selfie = !!state.photos?.face;
+    const model = composeVehicleModel(state);
+    const year = Number(state.year);
+    const yearOk = isPlausibleVehicleYear(year, now);
+    const acOk = state.hasAC === true || state.hasAC === false;
+    const seatsOk = SEAT_CHIPS.includes(Number(state.seats));
+    const plateOk = !!String(state.plate || '').trim();
+    const nameOk = !!String(state.name || '').trim();
+    const phoneOk = !!String(state.phone || '').trim();
+    const brandOk = !!state.brand && (state.brand !== 'Otra' || !!String(state.brandOther || '').trim());
+    const freight = type === 'paila' || type === 'camion' || type === 'grua';
+    const cargoOk = !freight || !!String(state.cargo || state.cargoCapacity || '').trim();
+    const photosDone = slots.length - photosMissing.length;
+    const docsDone = docs.length - docsMissing.length;
+    const category = yearOk && acOk && seatsOk
+        ? suggestRideCategory({ type, year, hasAC: state.hasAC === true, seats: Number(state.seats), cutoffs })
+        : null;
+    const canSubmit = !!(brandOk && model && plateOk && cargoOk && yearOk && acOk && seatsOk
+        && photosMissing.length === 0 && docsMissing.length === 0 && selfie && nameOk && phoneOk);
+    const canSaveUpdate = !!(brandOk && model && plateOk && cargoOk && yearOk && acOk && seatsOk);
+    const photoLine = photosMissing.length
+        ? `Fotos ${photoNoun(type)}: ${photosDone}/${slots.length} · falta ${photosMissing.join(', ')}`
+        : `Fotos ${photoNoun(type)}: ${photosDone}/${slots.length}`;
+    const docLine = docsMissing.length
+        ? `Documentos: ${docsDone}/${docs.length} · falta ${docsMissing.join(', ')}`
+        : `Documentos: ${docsDone}/${docs.length}`;
+    const lines = [
+        { ok: !!(model && plateOk), text: `Vehículo: ${model || 'falta'}${yearOk ? ` ${year}` : ''}` },
+        { ok: freight || !!category, text: freight ? 'Categoría de raite: no aplica' : `Categoría: ${category ? rideCategoryLabel(category) : 'falta'}` },
+        { ok: photosMissing.length === 0, text: photoLine },
+        { ok: docsMissing.length === 0, text: docLine },
+        { ok: selfie, text: selfie ? 'Selfie: lista' : 'Selfie: falta' }
+    ];
+    return {
+        photosDone,
+        photosTotal: slots.length,
+        photosMissing,
+        docsDone,
+        docsTotal: docs.length,
+        docsMissing,
+        selfie,
+        canSubmit,
+        canSaveUpdate,
+        lines,
+        category
+    };
 }
 
 export function documentRows() {
