@@ -90,9 +90,25 @@ service cloud.firestore {
 
     // Campos de perfil que el usuario NO puede tocar en su propio perfil.
     // role: solo puede quedar en pasajero/conductor (staff lo da el servidor).
+    // Conductor ya aprobado: puede guardar año, aire, asientos y categoría
+    // sin devolver la cuenta a pendiente. El personal sí puede cambiar el estado.
+    function comfortUpdateKeepsApproval(app) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isStaff(app)
+        || resource.data.get('approvalStatus', '') != 'approved'
+        || !changed.hasAny(['vehicleYear', 'hasAC', 'seats', 'suggestedCategory', 'vehicleCategoryConfirmed'])
+        || (
+          request.resource.data.approvalStatus == 'approved'
+          && request.resource.data.get('approvedAt', null) == resource.data.get('approvedAt', null)
+          && request.resource.data.get('documentsValidUntil', null) == resource.data.get('documentsValidUntil', null)
+          && request.resource.data.get('resubmitRequested', null) == resource.data.get('resubmitRequested', null)
+        );
+    }
+
     function profileRoleChangeOk(app) {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return (!changed.hasAny(['role'])
+      return comfortUpdateKeepsApproval(app)
+        && (!changed.hasAny(['role'])
           || request.resource.data.get('role', 'client') in ['client', 'driver', null, '']
           || isAdmin(app))
         && (!changed.hasAny(['staffGrantedBy', 'staffGrantedAt'])
@@ -616,7 +632,8 @@ service cloud.firestore {
     // ============================================================
 
     match /artifacts/{app}/public/data/appSettings/{doc} {
-      // Logo, bienvenida, APK y config se leen en el login (aún sin sesión)
+      // Logo, bienvenida, APK, config y cortes de categoría (rideCategories).
+      // El personal edita los cortes; el conductor solo los lee.
       allow read: if true;
       allow write: if isSignedIn() && isStaff(app);
     }
