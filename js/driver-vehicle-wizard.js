@@ -3,11 +3,12 @@
  * Misma data, fotos y aprobación de siempre, más año, aire, asientos y categoría sugerida.
  */
 import {
-    BRAND_CHIPS, YEAR_CHIPS, SEAT_CHIPS, VEHICLE_TYPES,
+    BRAND_CHIPS, SEAT_CHIPS, VEHICLE_TYPES,
     vehicleTypeMeta, parseYearFromVehicleText, suggestRideCategory, rideCategoryLabel,
     splitBrandAndModel, composeVehicleModel, vehiclePhotoSlots, documentRows,
     readComfort, normalizeCutoffs, isPlausibleVehicleYear, buildApprovedComfortPatch,
-    shouldAskVehicleUpdate, UPDATE_SNOOZE_MS, DEFAULT_RIDE_CUTOFFS, currentYear
+    shouldAskVehicleUpdate, UPDATE_SNOOZE_MS, DEFAULT_RIDE_CUTOFFS, currentYear,
+    yearChoices, placeYear, registrationChecklist
 } from './vehicle-categories.js';
 import { isValidTaxiPlate } from './service-types.js';
 import { isUsMarket } from './market.js';
@@ -97,7 +98,7 @@ function blankState(profile, mode) {
         plate: vehicle.plate || '',
         cargo: vehicle.cargoCapacity || '',
         year: year || null,
-        yearOther: year && !YEAR_CHIPS.includes(year) ? String(year) : '',
+        yearOther: placeYear(year).other,
         hasAC: saved.hasAC,
         seats: SEAT_CHIPS.includes(saved.seats) ? saved.seats : null,
         photos: {},
@@ -185,6 +186,8 @@ export function mountDriverVehicleWizard(host, options = {}) {
         const last = step === total;
         const blue = step === 1 && !last;
         const btn = mode === 'update' && last ? 'Guardar' : (last ? 'Enviar para aprobación' : 'Siguiente');
+        const report = registrationChecklist(state, { cutoffs });
+        const blocked = last && (mode === 'register' ? !report.canSubmit : !report.canSaveUpdate);
         root.innerHTML = `
             <header class="vw-top">
                 <div class="vw-top-row">
@@ -198,10 +201,15 @@ export function mountDriverVehicleWizard(host, options = {}) {
             <div class="vw-scroll">${bodyHtml(step)}</div>
             <footer class="vw-dock">
                 ${error ? `<p class="vw-error">${esc(error)}</p>` : ''}
-                <button type="button" class="vw-next ${blue ? 'is-blue' : 'is-orange'}" data-vw="next">${esc(btn)}</button>
-                ${last && mode === 'register' ? '<p class="vw-foot-note">Un supervisor revisa en menos de 24 horas.</p>' : ''}
+                <button type="button" class="vw-next ${blue ? 'is-blue' : 'is-orange'}" data-vw="next" ${blocked ? 'disabled' : ''}>${esc(btn)}</button>
+                ${last && mode === 'register' ? '<p class="vw-foot-note">Un supervisor revisará tus datos.</p>' : ''}
             </footer>`;
         bind();
+        const selectedYear = root.querySelector('.vw-years .vw-chip.is-on');
+        const yearBox = root.querySelector('.vw-years');
+        if (selectedYear && yearBox) {
+            yearBox.scrollTop = Math.max(0, selectedYear.offsetTop - yearBox.offsetTop - 4);
+        }
     }
 
     function progressHtml(step, total) {
@@ -253,14 +261,15 @@ export function mountDriverVehicleWizard(host, options = {}) {
     }
 
     function stepComfort() {
-        const otherOn = state.year && !YEAR_CHIPS.includes(Number(state.year));
+        const placed = placeYear(state.year);
+        const years = yearChoices();
         return `
             <h3 class="vw-q">¿De qué año es tu vehículo?</h3>
-            <div class="vw-years">
-                ${YEAR_CHIPS.map((y) => `<button type="button" class="vw-chip ${Number(state.year) === y ? 'is-on' : ''}" data-year="${y}">${y}</button>`).join('')}
+            <div class="vw-years" role="listbox" aria-label="Año del vehículo">
+                ${years.map((y) => `<button type="button" class="vw-chip ${placed.grid === y ? 'is-on' : ''}" data-year="${y}">${y}</button>`).join('')}
             </div>
-            <p class="vw-label">Otro</p>
-            <input class="vw-field" data-field="yearOther" inputmode="numeric" maxlength="4" value="${esc(otherOn ? state.year : state.yearOther)}" placeholder="Otro año">
+            <p class="vw-label">Otro (antes de ${years[0] || 1995})</p>
+            <input class="vw-field" data-field="yearOther" inputmode="numeric" maxlength="4" value="${esc(placed.other || state.yearOther || '')}" placeholder="Otro año">
             <p class="vw-label">¿Tiene aire acondicionado?</p>
             <div class="vw-ac">
                 <div class="vw-ac-q"><i class="fas fa-snowflake"></i> ¿Tiene aire?</div>
@@ -306,7 +315,9 @@ export function mountDriverVehicleWizard(host, options = {}) {
             <p class="vw-hint">Una fila por documento. Código y foto, nítidos y vigentes.</p>
             ${rows.map((r) => {
                 const ready = docReady(r);
-                const code = r.codeKey ? `<input data-field="${esc(r.codeKey)}" value="${esc(state[r.codeKey] || '')}" placeholder="${esc(r.codeLabel)}">` : '';
+                const code = r.codeKey
+                    ? `<label class="vw-code-label">${esc(r.codeLabel)}<input data-field="${esc(r.codeKey)}" value="${esc(state[r.codeKey] || '')}" placeholder="${esc(r.codeLabel)}"></label>`
+                    : '';
                 return `<div class="vw-doc ${ready ? 'is-done' : ''}">
                     <button type="button" class="vw-doc-ico" data-photo="${esc(r.slot)}" aria-label="Tomar foto"><i class="fas fa-camera"></i></button>
                     <div class="vw-doc-main"><strong>${esc(r.label)}</strong>${code}</div>
@@ -323,27 +334,31 @@ export function mountDriverVehicleWizard(host, options = {}) {
         return true;
     }
 
+    function faceGuideHtml() {
+        return `<span class="vw-face-guide" aria-hidden="true"><svg viewBox="0 0 120 140">
+            <ellipse cx="60" cy="62" rx="32" ry="40" fill="none" stroke="currentColor" stroke-width="3"/>
+            <circle cx="48" cy="56" r="3" fill="currentColor"/>
+            <circle cx="72" cy="56" r="3" fill="currentColor"/>
+            <path d="M48 78c4 6 20 6 24 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        </svg></span>`;
+    }
+
+    function summaryHtml(report) {
+        return report.lines.map((line) =>
+            `<div><i class="fas ${line.ok ? 'fa-check-circle' : 'fa-exclamation-circle is-miss'}"></i> ${esc(line.text)}</div>`
+        ).join('');
+    }
+
     function stepSend() {
-        const slots = vehiclePhotoSlots(state.type);
-        const photosDone = slots.filter((s) => state.photos[s.slot]).length;
-        const docs = documentRows();
-        const docsDone = docs.filter((r) => docReady(r)).length;
-        const cat = categoryNow();
-        const model = composeVehicleModel(state);
+        const report = registrationChecklist(state, { cutoffs });
         const face = state.photos.face;
         return `
             <button type="button" class="vw-face" data-photo="face" aria-label="Tomar selfie">
-                ${face && String(face).startsWith('data:') ? `<img alt="" src="${face}">` : '<i class="fas fa-user"></i>'}
+                ${face && String(face).startsWith('data:') ? `<img alt="" src="${face}">` : faceGuideHtml()}
                 ${face ? '<i class="vw-check fas fa-check"></i>' : ''}
             </button>
             <p class="vw-face-copy">De frente, con buena luz,<br>sin gorra ni lentes</p>
-            <div class="vw-summary">
-                <div><i class="fas fa-check-circle"></i> Vehículo: ${esc(model || '—')}${state.year ? ` ${esc(state.year)}` : ''}</div>
-                <div><i class="fas fa-check-circle"></i> Categoría: ${esc(cat ? rideCategoryLabel(cat) : '—')}</div>
-                <div><i class="fas fa-check-circle"></i> Fotos ${esc(photoNoun(state.type))}: ${photosDone}/${slots.length}</div>
-                <div><i class="fas fa-check-circle"></i> Documentos: ${docsDone}/${docs.length}</div>
-                <div><i class="fas fa-check-circle"></i> Selfie: ${face ? 'lista' : 'falta'}</div>
-            </div>
+            <div class="vw-summary">${summaryHtml(report)}</div>
             <p class="vw-label">Tus datos</p>
             <input class="vw-field" data-field="name" value="${esc(state.name)}" placeholder="Nombre completo (como en tu DNI)" style="margin-bottom:8px">
             <input class="vw-field" data-field="phone" value="${esc(state.phone)}" placeholder="WhatsApp (+504…)" style="margin-bottom:8px">
@@ -510,6 +525,13 @@ export function mountDriverVehicleWizard(host, options = {}) {
                 if (state.step === 2) {
                     const cat = root.querySelector('.vw-cat');
                     if (cat) cat.innerHTML = `<i class="fas fa-check-circle"></i> ${esc(categoryLine())}`;
+                }
+                if (state.step === totalSteps(mode)) {
+                    const report = registrationChecklist(state, { cutoffs });
+                    const box = root.querySelector('.vw-summary');
+                    if (box) box.innerHTML = summaryHtml(report);
+                    const next = root.querySelector('[data-vw="next"]');
+                    if (next) next.disabled = mode === 'register' ? !report.canSubmit : !report.canSaveUpdate;
                 }
             });
         });

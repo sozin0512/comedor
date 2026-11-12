@@ -1,5 +1,6 @@
 /* Asistente de vehículo del conductor. El botón principal queda fijo,
    por encima de la barra de Android (3 botones 48px, gestos 20px, más 8px). */
+.vw-root, .vw-root * { box-sizing: border-box; }
 .vw-root {
     position: fixed;
     inset: 0;
@@ -10,6 +11,8 @@
     flex-direction: column;
     font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     padding-top: max(8px, var(--safe-top, env(safe-area-inset-top, 0px)));
+    max-width: 100%;
+    overflow-x: hidden;
 }
 .vw-root[hidden] { display: none !important; }
 .vw-top {
@@ -79,7 +82,10 @@
 .vw-dot-line.is-on { background: #2563eb; }
 .vw-scroll {
     flex: 1 1 auto;
-    overflow: auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: 14px 16px 12px;
 }
@@ -146,8 +152,11 @@
     border-color: #2563eb;
     color: #fff;
 }
-.vw-field, .vw-code {
+.vw-field, .vw-code, .vw-doc-main input {
+    display: block;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     border: 1.5px solid #cbd5e1;
     background: #fff;
     border-radius: 14px;
@@ -161,6 +170,9 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     border: 1.5px solid #cbd5e1;
     background: #fff;
     border-radius: 14px;
@@ -177,7 +189,16 @@
     background: transparent;
     min-width: 0;
 }
-.vw-years { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.vw-years {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    max-height: 220px;
+    overflow: auto;
+    min-width: 0;
+    width: 100%;
+}
+.vw-years .vw-chip { width: 100%; min-width: 0; padding: 0 2px; }
 .vw-ac {
     display: flex;
     align-items: center;
@@ -270,22 +291,32 @@
     border-radius: 16px;
     padding: 10px;
     margin-bottom: 10px;
+    min-width: 0;
+    max-width: 100%;
 }
 .vw-doc-ico {
     width: 42px; height: 42px; border-radius: 12px;
     background: #eff6ff; color: #2563eb;
     display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
-.vw-doc-main { flex: 1; min-width: 0; }
+.vw-doc-main { flex: 1 1 auto; min-width: 0; max-width: 100%; }
 .vw-doc-main strong { display: block; font-size: 14px; }
-.vw-doc-main input {
+.vw-code-label {
+    display: block;
     margin-top: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #64748b;
+}
+.vw-doc-main input {
+    margin-top: 4px;
     width: 100%;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 10px;
+    max-width: 100%;
+    min-width: 0;
     min-height: 36px;
     padding: 0 10px;
-    font-weight: 700;
+    border-radius: 10px;
+    border-color: #e2e8f0;
 }
 .vw-photo-btn {
     border: 0;
@@ -317,10 +348,13 @@
     align-items: center;
     justify-content: center;
     color: #2563eb;
-    font-size: 64px;
+    max-width: 100%;
     position: relative;
     overflow: hidden;
 }
+.vw-face-guide { width: 92px; height: 108px; display: block; color: #2563eb; }
+.vw-face-guide svg { width: 100%; height: 100%; display: block; }
+.vw-face img { position: absolute; inset: 0; }
 .vw-face img { width: 100%; height: 100%; object-fit: cover; }
 .vw-face-copy { text-align: center; color: #475569; font-weight: 700; font-size: 14px; line-height: 1.35; margin-bottom: 12px; }
 .vw-summary {
@@ -329,10 +363,13 @@
     border-radius: 16px;
     padding: 12px 14px;
 }
-.vw-summary div { display: flex; gap: 8px; align-items: flex-start; font-weight: 700; font-size: 14px; margin: 4px 0; }
+.vw-summary { min-width: 0; max-width: 100%; }
+.vw-summary div { display: flex; gap: 8px; align-items: flex-start; font-weight: 700; font-size: 14px; margin: 4px 0; min-width: 0; overflow-wrap: anywhere; }
 .vw-summary i { color: #22c55e; margin-top: 2px; }
 .vw-dock {
     flex: 0 0 auto;
+    min-width: 0;
+    max-width: 100%;
     background: linear-gradient(#f4f7fb, #fff 28%);
     padding: 8px 16px calc(8px + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
 }
@@ -354,7 +391,8 @@ body.android-gesture .vw-dock {
 }
 .vw-next.is-blue { background: #2563eb; }
 .vw-next.is-orange { background: #f97316; }
-.vw-next:disabled { opacity: .65; }
+.vw-next:disabled { opacity: .45; cursor: not-allowed; }
+.vw-summary i.is-miss { color: #d97706; }
 .vw-foot-note { text-align: center; color: #64748b; font-size: 12px; font-weight: 700; margin: 8px 0 0; }
 .vw-error { color: #dc2626; font-size: 13px; font-weight: 700; margin: 8px 0 0; }
 
@@ -419,6 +457,8 @@ body.android-gesture .vw-notice {
 .vw-admin label { display: block; font-size: 12px; font-weight: 800; margin: 10px 0 4px; color: #cbd5e1; }
 .vw-admin input {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     background: #1e293b;
     color: #fff;
     border: 1px solid #334155;

@@ -48,11 +48,17 @@ if (screen === 'notice') {
     });
 } else {
     const step = Number(String(screen).replace('step', '')) || 1;
-    const photos = {};
-    const all = ['extFront', 'extRear', 'plate', 'int1', 'int2', 'int3', 'licenseFront', 'licenseBack', 'inspection', 'antecedentes', 'policiales', 'face'];
-    if (step === 3) ['extFront', 'extRear', 'plate'].forEach((s) => { photos[s] = photo; });
-    if (step === 4) ['licenseFront', 'licenseBack'].forEach((s) => { photos[s] = photo; });
-    if (step >= 5) all.forEach((s) => { photos[s] = photo; });
+    // Un solo borrador: 3 fotos del carro y 2 documentos. El paso 5 usa ese mismo estado.
+    const draftPhotos = {
+        extFront: photo,
+        extRear: photo,
+        plate: photo,
+        licenseFront: photo,
+        licenseBack: photo
+    };
+    const photos = step < 3 ? {} : (step === 3
+        ? { extFront: photo, extRear: photo, plate: photo }
+        : draftPhotos);
     mountDriverVehicleWizard(document.body, {
         preview: true,
         ignoreDraft: true,
@@ -69,14 +75,24 @@ if (screen === 'notice') {
             hasAC: step >= 2 ? true : null,
             seats: step >= 2 ? 4 : null,
             photos,
-            licenseNumber: step >= 4 ? '0801-1990-12345' : '',
-            inspection: step >= 5 ? 'RV-2026' : '',
-            penCode: step >= 5 ? 'PEN-4481' : '',
-            policialesCode: step >= 5 ? 'POL-2290' : '',
+            licenseNumber: step >= 4 ? 'L-48291' : '',
             name: 'Ana López',
             phone: '+504 9999-0000'
         }
     });
+}
+if (new URLSearchParams(location.search).get('audit') === '1') {
+    setTimeout(() => {
+        const bad = [];
+        document.querySelectorAll('input, .vw-field, .vw-model, .vw-doc, .vw-next, .vw-years').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width < 2) return;
+            if (r.right > window.innerWidth + 1 || r.left < -1) {
+                bad.push((el.getAttribute('data-field') || el.getAttribute('placeholder') || el.className || el.tagName).toString().slice(0, 40));
+            }
+        });
+        document.documentElement.dataset.audit = bad.length ? ('OVERFLOW ' + bad.join(' | ')) : 'NO_OVERFLOW';
+    }, 50);
 }
 if (new URLSearchParams(location.search).get('advance') === '1') {
     setTimeout(() => document.querySelector('[data-vw="next"]')?.click(), 60);
