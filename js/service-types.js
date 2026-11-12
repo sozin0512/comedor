@@ -161,8 +161,22 @@ export function setServiceRateOverrides(map) {
     return runtimeServiceRates;
 }
 
+/**
+ * v.109 · Este módulo se importa con distintas ?v= (varias copias en memoria). El admin guarda
+ * las tarifas desde route-fixed-fares (una copia) y el precio lo calcula app.js (otra copia):
+ * se lee SIEMPRE el valor compartido en window para que todas usen la tarifa guardada.
+ */
+function currentServiceRates() {
+    try {
+        if (typeof window !== 'undefined' && window.__HR_SERVICE_RATES && typeof window.__HR_SERVICE_RATES === 'object') {
+            return window.__HR_SERVICE_RATES;
+        }
+    } catch (_) {}
+    return runtimeServiceRates;
+}
+
 export function getServiceRateOverrides() {
-    return { ...runtimeServiceRates };
+    return { ...currentServiceRates() };
 }
 
 /** Tarifas por defecto (sin override admin). */
@@ -184,7 +198,7 @@ export function getServiceMeta(type) {
         if (usd) return { ...meta, base: usd.base, perKm: usd.perKm };
         return meta;
     }
-    const ov = runtimeServiceRates[id];
+    const ov = currentServiceRates()[id];
     if (!ov) return meta;
     return {
         ...meta,
