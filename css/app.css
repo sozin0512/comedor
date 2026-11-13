@@ -28233,3 +28233,7 @@ body.driver-mode #passenger-waiting-lock { display: none !important; }
 #passenger-home-hub.hrh.hrh--waiting-lock .hr-wait-blocked { opacity: 0.72; }
 #passenger-home-hub.hrh.hrh--waiting-lock .hr-tile.hr-wait-blocked small,
 #passenger-home-hub.hrh.hrh--waiting-lock [data-home-mode].hr-wait-blocked small { color: #64748b !important; }
+
+/* v.112 · Conductor: enlace «¿No podés finalizar? Finalizar aquí» */
+.driver-finish-here-btn { padding: 0.6rem; border-radius: 12px; background: #eef4ff; border: 1px dashed #b9d3fb; color: #123a7a; font-weight: 800; font-size: 0.72rem; }
+.driver-finish-here-btn.hidden { display: none !important; }

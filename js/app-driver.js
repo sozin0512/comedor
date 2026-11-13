@@ -258,6 +258,14 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
         });
     };
 
+    // v.112 · «¿No podés finalizar?»: en curso siempre; aceptado solo cuando ya marcó llegada (fase PIN)
+    const helpBtn = document.getElementById('driver-finish-here-btn');
+    if (helpBtn) {
+        const mine = isDriver && trip?.driverId === uid;
+        const showHelp = mine && (inProgress || (trip?.status === 'accepted' && !!trip?.driverArrived && !window.isDeliveryTrip?.(trip)));
+        helpBtn.classList.toggle('hidden', !showHelp);
+    }
+
     if (!isDriver || !inProgress) {
         float?.classList.add('hidden');
         panelDestBtn?.classList.add('hidden');
@@ -273,6 +281,7 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
     const dist = pos && dest ? window.getDistanceMetersBetween(pos, dest) : Infinity;
     const within = Number.isFinite(dist) && dist <= TRIP_DEST_CONFIRM_RADIUS_M;
     const signaled = !!trip.driverArrivedDestination;
+    if (!signaled) window._hrDestSignaledAt = 0;
 
     const legLabel = window.getTripRouteLegLabel?.(trip) || { isFinal: true, routeNum: 2, hasMultipleLegs: false };
     const pointLabel = legLabel.isFinal ? 'destino' : `punto ${legLabel.routeNum}`;
@@ -285,7 +294,10 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
             el.setAttribute('aria-disabled', 'true');
             el.dataset.blocked = '1';
         });
-        destSpans.forEach((span) => { span.textContent = 'FINALIZANDO…'; });
+        // Si el cierre falló (sin conexión), el botón no debe parecer trabado: tocarlo reintenta.
+        const sinceMs = Date.now() - (window._hrDestSignaledAt || (window._hrDestSignaledAt = Date.now()));
+        destSpans.forEach((span) => { span.textContent = sinceMs > 6000 ? 'REINTENTAR FINALIZAR' : 'FINALIZANDO…'; });
+        if (sinceMs <= 6000) setTimeout(() => { try { window.syncDriverDestinationArrivalUi?.(); } catch (_) {} }, 6500 - sinceMs);
         if (float) float.title = 'Llegada registrada. Completando el viaje…';
         if (hint) hint.innerHTML = '✅ Llegada registrada. Completando el viaje…';
         return;
@@ -399,6 +411,74 @@ const hrZoneDeliveryDone = async (trip) => {
         });
     } catch (e) { console.warn('[envio-zona] hoja', e); }
 };
+/**
+ * v.112 · «Finalizar aquí»: completa el viaje aunque el conductor no esté en el destino
+ * (pasajero se bajó antes, cambió de destino, viaje por horas, GPS malo) o aunque nunca se
+ * haya ingresado el PIN (solo viajes en efectivo). Guarda dónde y por qué, para revisión.
+ */
+const hrFinishHere = async (trip, { pos = null, dest = null, dist = Infinity } = {}) => {
+    const accepted = trip.status === 'accepted';
+    const km = Number.isFinite(dist) ? (dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)} m`) : '';
+    const reason = accepted ? 'sin_pin' : (!dest ? 'sin_destino' : (!pos ? 'sin_gps' : 'lejos_destino'));
+    const lines = {
+        sin_pin: 'El viaje no se inició con el PIN.\n\n¿Ya llevaste al pasajero y te pagó? Si finalizás, el viaje cuenta como completado.',
+        sin_destino: 'Este viaje no tiene un destino fijo en el mapa.\n\n¿Ya terminó el servicio? Se finalizará aquí.',
+        sin_gps: 'No tenemos tu ubicación GPS ahora.\n\n¿Ya dejaste al pasajero? El viaje se finalizará igual.',
+        lejos_destino: `Estás a ${km} del destino.\n\n¿El pasajero se bajó aquí? El viaje se finalizará en este punto.`,
+    };
+    const ok = await (window.hrConfirm
+        ? window.hrConfirm(`${lines[reason]}\n\nQueda registrado para revisión de HonduRaite.`, { okText: 'Sí, finalizar aquí', cancelText: 'Todavía no' })
+        : Promise.resolve(confirm(lines[reason])));
+    if (!ok) return;
+    const patch = {
+        finishOverride: true,
+        finishOverrideReason: reason,
+        finishOverrideDistM: Number.isFinite(dist) ? Math.round(dist) : null,
+        finishOverrideLat: pos?.lat ?? null,
+        finishOverrideLng: pos?.lng ?? null,
+        finishOverrideAtMs: Date.now(),
+        driverArrivedDestination: true,
+        driverArrivedDestinationAt: serverTimestamp(),
+    };
+    if (accepted) { patch.driverArrived = true; patch.finishedWithoutPin = true; }
+    await window.hrWithTimeout(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), patch), 15000, 'sin-conexion');
+    window.activeTrip = { ...trip, ...patch };
+    window.currentActiveTripData = { ...window.activeTrip };
+    await window.finishTrip?.({ skipConfirm: true });
+};
+
+/** Botón «¿No podés finalizar?» del conductor (viaje aceptado o en curso). */
+window.driverFinishHere = async () => {
+    if (window.__hrDestBusy) return window.showToast?.('Finalizando viaje… espera un momento.', 'warning');
+    window.__hrDestBusy = true;
+    try {
+        const trip = window.activeTrip || window.currentActiveTripData;
+        const uid = window.currentUser?.uid;
+        if (!trip?.id || trip.driverId !== uid || !['accepted', 'in_progress'].includes(trip.status)) {
+            return window.showToast?.('No hay un viaje activo para finalizar.', 'error');
+        }
+        if (trip.zoneBilling === true || trip.deliveryDetails?.zoneBilling === true || (trip.batchId && window.hrPedidoDoble?.partnerOpen?.(trip))) {
+            return await hrDestArrivalInner();
+        }
+        if (trip.status === 'accepted') {
+            if (window.isDeliveryTrip?.(trip)) {
+                return window.showToast?.('Primero confirmá que recogiste el pedido.', 'warning');
+            }
+            const pay = String(trip.paymentMethod || '').toLowerCase();
+            if (pay === 'saldo' || pay === 'birthday_gift' || trip.birthdayFree) {
+                return window.showToast?.('Este viaje se paga con saldo: pedile el PIN al pasajero para iniciarlo.', 'warning');
+            }
+        }
+        const pos = await hrDestFreshPos();
+        const dest = window.getTripDestinationCoords(trip);
+        const dist = pos && dest ? window.getDistanceMetersBetween(pos, dest) : Infinity;
+        return await hrFinishHere(trip, { pos, dest, dist });
+    } catch (e) {
+        console.error('driverFinishHere', e);
+        window.showToast?.('No se pudo finalizar: ' + (e?.code || e?.message || 'error') + '. Intenta de nuevo.', 'error');
+    } finally { window.__hrDestBusy = false; }
+};
+
 const hrDestArrivalInner = async () => {
     const trip = window.activeTrip || window.currentActiveTripData;
     const uid = window.currentUser?.uid || window.currentUser?.uid;
@@ -417,18 +497,12 @@ const hrDestArrivalInner = async () => {
     window.showToast?.('Verificando ubicación…', 'warning');
     const pos = await hrDestFreshPos();
     const dest = window.getTripDestinationCoords(trip);
-    if (!pos || !dest) {
-        return window.showToast?.(!pos ? 'No tenemos tu ubicación GPS. Activa la ubicación e intenta de nuevo.' : 'El viaje no tiene destino con coordenadas. Avisa a soporte.', 'error');
-    }
-    const dist = window.getDistanceMetersBetween(pos, dest);
-    if (dist > TRIP_DEST_CONFIRM_RADIUS_M) {
-        const needLabel = TRIP_DEST_CONFIRM_RADIUS_M >= 1000
-            ? `${(TRIP_DEST_CONFIRM_RADIUS_M / 1000).toFixed(0)} km`
-            : `${TRIP_DEST_CONFIRM_RADIUS_M} m`;
-        const nowLabel = dist >= 1000
-            ? `${(dist / 1000).toFixed(1)} km`
-            : `${Math.round(dist)} m`;
-        return window.showToast?.(`Debes estar a ${needLabel} o menos del destino (ahora ~${nowLabel}).`, 'error');
+    const dist = pos && dest ? window.getDistanceMetersBetween(pos, dest) : Infinity;
+    // v.112 · Lejos del destino, sin destino con ubicación (viajes por horas) o sin GPS: antes el
+    // botón bloqueaba y el conductor terminaba CANCELANDO (el viaje no contaba). Ahora puede
+    // finalizar aquí con una confirmación; queda marcado para revisión del staff.
+    if (!pos || !dest || dist > TRIP_DEST_CONFIRM_RADIUS_M) {
+        return hrFinishHere(trip, { pos, dest, dist });
     }
 
     const legLabel = window.getTripRouteLegLabel?.(trip) || { isFinal: true, routeNum: 2 };
