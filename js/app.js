@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.109";
+} from "./auth-credentials.js?v=2026.10.26.110";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.109";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.109";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.110";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.110";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.109";
+} from "./market.js?v=2026.10.26.110";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.109";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.109";
+} from "./phone-utils.js?v=2026.10.26.110";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.110";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.109";
+} from "./referrals.js?v=2026.10.26.110";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.109";
+} from "./zones.js?v=2026.10.26.110";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.109";
+} from "./trip-notifications.js?v=2026.10.26.110";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.109";
+} from "./notification-tones.js?v=2026.10.26.110";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.109";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.110";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.109";
+} from "./passenger-alerts.js?v=2026.10.26.110";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.109";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.109";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.109";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.109";
+} from "./passenger-verification.js?v=2026.10.26.110";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.110";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.110";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.110";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.109";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.110";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.109";
+} from "./feedback.js?v=2026.10.26.110";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.109";
+} from "./greetings.js?v=2026.10.26.110";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,7 +148,7 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.26.109";
+} from "./service-types.js?v=2026.10.26.110";
 import {
     bookingPrimaryAction,
     serviceStepCopy,
@@ -158,8 +158,8 @@ import {
     shouldQuoteRouteNow,
     scrollDeltaToReveal,
 } from "./booking-primary-action.mjs?v=2026.10.26.104";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.109";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.109";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.110";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.110";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -184,23 +184,23 @@ import {
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml,
     usesTimedExclusiveOffer
-} from "./store-delivery-rotation.js?v=2026.10.26.109";
+} from "./store-delivery-rotation.js?v=2026.10.26.110";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.109";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.110";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.109";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.109";
+} from "./service-availability.js?v=2026.10.26.110";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.110";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.109";
+} from "./trip-wait.js?v=2026.10.26.110";
 import {
     scheduledForMs as schedUiMs,
     formatClock as schedFormatClock,
@@ -222,12 +222,12 @@ import {
     companionVisibility as schedCompanionVisibility,
     isLocking as schedIsLocking,
     ANDROID_NAV as SCHED_ANDROID_NAV
-} from "./scheduled-trip-driver-ui.js?v=2026.10.26.109";
+} from "./scheduled-trip-driver-ui.js?v=2026.10.26.110";
 import {
     isWaitingScheduledTrip,
     pickWaitingScheduledTrip,
     WAITING_LOCK_TOAST
-} from "./scheduled-trip-client-lock.js?v=2026.10.26.109";
+} from "./scheduled-trip-client-lock.js?v=2026.10.26.110";
 import "./passenger-waiting-lock.js?v=2026.10.26.104";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
@@ -245,49 +245,49 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
-} from "./driver-vehicles-v2.js?v=2026.10.26.109";
+} from "./driver-vehicles-v2.js?v=2026.10.26.110";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.109";
+} from "./route-fixed-fares.js?v=2026.10.26.110";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.109";
+} from "./commission-free-day.js?v=2026.10.26.110";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.109";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.109";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.109";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.109";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.109";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.109";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.109";
+} from "./route-conditions.js?v=2026.10.26.110";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.110";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.110";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.110";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.110";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.110";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.110";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.109";
+} from "./demand-heatmap.js?v=2026.10.26.110";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.109";
+} from "./ops-fleet-map.js?v=2026.10.26.110";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.109";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.109";
+} from "./live-trip-keepalive.js?v=2026.10.26.110";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.110";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.109";
+} from "./driver-session.js?v=2026.10.26.110";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -296,7 +296,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.109";
+} from "./session-keepalive.js?v=2026.10.26.110";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -386,32 +386,32 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.109";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.110";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.109";
+} from "./auth-ui.js?v=2026.10.26.110";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.109";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.109";
+} from "./age-verification.js?v=2026.10.26.110";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.110";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.109";
-import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.109";
-import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.109";
+} from "./trip-experience.js?v=2026.10.26.110";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.110";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.110";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.109";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.109";
+} from "./support-tickets.js?v=2026.10.26.110";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.110";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.109";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.109";
-import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.109";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.110";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.110";
+import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.110";
 
 // ==================== CONFIRMACIÓN IN-APP (reemplaza window.confirm nativo) ====================
 // En el APK (Android WebView) el confirm() nativo bloquea el hilo JS y a veces se queda pegado.
@@ -6661,8 +6661,10 @@ if (document.readyState === 'loading') {
         // for new pending trips (moto/delivery/carro) even if not on the Viajes tab.
         window.startStaffTripAlertsListener = function () {
             if (window._staffTripAlertUnsub) return; // already running
+            // v.110 · Solo viajes pendientes (antes escuchaba TODOS los viajes: con cada cambio de
+            // cualquier viaje se recorría la colección entera en el teléfono del staff).
             window._staffTripAlertUnsub = onSnapshot(
-                collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
+                query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where('status', '==', 'pending')),
                 (snap) => {
                     const pending = snap.docs
                         .map(d => ({ id: d.id, ...d.data() }))
@@ -9445,12 +9447,28 @@ if (document.readyState === 'loading') {
          * Cache de ciudades con conductores REGISTRADOS (users).
          * Spill solo si la ciudad del viaje no tiene ninguno (aunque estén offline).
          */
-        async function ensureRegisteredDriverZonesCache({ force = false, maxAgeMs = 90000 } = {}) {
+        /** v.110 · Solo los perfiles de conductores (antes se descargaba TODA la colección de usuarios). */
+        function hrDriverUsersQuery() {
+            return query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('role', '==', 'driver'));
+        }
+
+        // v.110 · Antes: cada pasajero/conductor bajaba todos los usuarios cada 90 s (trabones periódicos
+        // y muchas lecturas). Ahora: solo conductores, cada 10 min, y una sola descarga a la vez.
+        async function ensureRegisteredDriverZonesCache({ force = false, maxAgeMs = 600000 } = {}) {
             const now = Date.now();
             const cache = window._registeredDriverZonesCache;
             if (!force && cache?.zones && (now - cache.at) < maxAgeMs) {
                 return cache.zones;
             }
+            if (window._registeredDriverZonesInFlight) return window._registeredDriverZonesInFlight;
+            window._registeredDriverZonesInFlight = (async () => {
+                try { return await loadRegisteredDriverZones(force, now, cache); }
+                finally { window._registeredDriverZonesInFlight = null; }
+            })();
+            return window._registeredDriverZonesInFlight;
+        }
+
+        async function loadRegisteredDriverZones(force, now, cache) {
             try {
                 // Preferir allUsersData si admin/staff ya lo cargó
                 if (!force && Array.isArray(window.allUsersData) && window.allUsersData.length) {
@@ -9458,7 +9476,7 @@ if (document.readyState === 'loading') {
                     window._registeredDriverZonesCache = { at: now, zones };
                     return zones;
                 }
-                const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+                const snap = await getDocs(hrDriverUsersQuery());
                 const zones = collectRegisteredDriverZoneIds(snap);
                 window._registeredDriverZonesCache = { at: now, zones };
                 return zones;
@@ -9584,7 +9602,7 @@ if (document.readyState === 'loading') {
             return count;
         }
 
-        const REGISTERED_DRIVERS_CACHE_TTL_MS = 120000;
+        const REGISTERED_DRIVERS_CACHE_TTL_MS = 600000; // v.110 · 10 min (antes 2)
         const NOTIFY_FLY_INTERVAL_MS = 1800;
         const NOTIFY_DRIVERS_MAX = 20;
         const NOTIFY_AVATAR_PLACEHOLDER = '/icons/placeholder-avatar.svg';
@@ -9707,7 +9725,7 @@ if (document.readyState === 'loading') {
 
             let usersSnap;
             try {
-                usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+                usersSnap = await getDocs(hrDriverUsersQuery());
             } catch (_) {
                 const fallbackDrivers = mergeViewedInto(
                     hit?.drivers
@@ -17606,7 +17624,7 @@ if (document.readyState === 'loading') {
 
                 if (!drivers.length) {
                     try {
-                        const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+                        const snap = await getDocs(hrDriverUsersQuery());
                         drivers = [];
                         snap.forEach((d) => {
                             const u = { uid: d.id, ...d.data() };
@@ -31596,7 +31614,7 @@ onAuthStateChanged(auth, async (user) => {
                 // If no visible cards (or empty), fetch from DB so it always works
                 if (lines.length === 0) {
                     try {
-                        const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+                        const snap = await getDocs(hrDriverUsersQuery());
                         snap.forEach(d => {
                             const u = d.data();
                             if (u.role === 'driver' && u.payoutBank) {

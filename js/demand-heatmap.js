@@ -333,7 +333,20 @@ export function startDemandHeatmapListener(db, appId, getZoneId, getRadiusKm) {
             () => {}
         );
     };
-    unsub = onSnapshot(tripsColRef, (snap) => scheduleRender(snap), () => startLimited());
+    // v.110 · El mapa de demanda solo usa viajes creados HOY. Staff: solo los de hoy (antes toda la
+    // colección, re-procesada con cada cambio de cualquier viaje). Los demás: directo a la consulta
+    // limitada (antes intentaban la completa, las reglas la rechazaban y recién ahí caían a esta).
+    let staff = false;
+    try { const r = window.hrGetTrustedStaffRole?.(); staff = r === 'admin' || r === 'supervisor'; } catch (_) {}
+    if (!staff) { startLimited(); }
+    else {
+        const { start } = getHondurasTodayRange();
+        unsub = onSnapshot(
+            query(tripsColRef, where('createdAt', '>=', start)),
+            (snap) => scheduleRender(snap),
+            () => startLimited()
+        );
+    }
 
     // No forzar la leyenda visible al arrancar: solo aparece cuando hay zonas calientes.
     // El chip de ciudad debe seguir disponible para que el conductor cambie de ciudad.
