@@ -893,14 +893,18 @@ function playConfiguredToneFromPush(data = {}) {
             || type === 'freight_trip_alert'
             || type === 'trip_price_boost'
             || data.openDriver === 'true';
-        if (tripLike) playTripHtmlAlert();
-        // Preferir tonos configurados por admin (Personalización)
+        // Preferir tonos configurados por admin (Personalización).
+        // v.111 · Antes sonaba SIEMPRE el tono fijo (hondu_iconic) y encima el configurado: dos a la vez.
+        // Ahora el fijo es solo respaldo si el configurado no pudo sonar.
         if (typeof window.playEventNotificationTone === 'function') {
             const eventId = typeof window.resolveToneEventFromPush === 'function'
                 ? window.resolveToneEventFromPush(data)
                 : (window.HonduTones?.resolveToneEventFromPush?.(data) || 'general');
-            return !!window.playEventNotificationTone(eventId) || tripLike;
+            const ok = !!window.playEventNotificationTone(eventId);
+            if (!ok && tripLike) playTripHtmlAlert();
+            return ok || tripLike;
         }
+        if (tripLike) playTripHtmlAlert();
         if (window.HonduTones?.playEventTone) {
             const eventId = window.HonduTones.resolveToneEventFromPush?.(data) || 'general';
             return !!window.HonduTones.playEventTone(eventId);
