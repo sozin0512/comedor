@@ -734,6 +734,7 @@ function playNotes(notes = [], ctxOverride = null) {
             osc.start(t0);
             osc.stop(t0 + dur + endPad);
         });
+        if (ctx.state === 'running') markToneStarted();
         return true;
     } catch (_) {
         return false;
@@ -751,6 +752,7 @@ function playDecodedBuffer(buffer) {
         src.connect(gain);
         gain.connect(ctx.destination);
         src.start(0);
+        markToneStarted();
         return true;
     } catch (_) {
         return false;
@@ -803,6 +805,7 @@ function playFileUrl(url) {
         if (p?.then) {
             p.then(() => {
                 audioUnlocked = true;
+                markToneStarted();
             }).catch(() => {
                 // Cola para el próximo gesto del usuario (Safari)
                 enqueuePendingTone({ type: 'url', url });
@@ -858,6 +861,29 @@ export function playToneById(toneId, opts = {}) {
     return false;
 }
 
+/**
+ * v.111 · Un solo sonido a la vez. Antes sonaban dos juntos cuando:
+ *  - llegaban dos avisos distintos del mismo suceso (p. ej. «viaje nuevo» de staff + oferta + campana),
+ *  - el push en primer plano y el aviso de la app sonaban cada uno por su lado,
+ *  - en iPhone el reintento a 120/400 ms volvía a reproducir el archivo encima del primero.
+ * La compuerta vive en window: este módulo se carga en varias copias (distintas ?v=).
+ */
+const TONE_GATE_MS = 1500;
+function toneGate() {
+    try {
+        if (typeof window === 'undefined') return null;
+        return window.__hrToneGate || (window.__hrToneGate = { at: 0, startedAt: 0 });
+    } catch (_) { return null; }
+}
+function markToneStarted() {
+    const g = toneGate();
+    if (g) g.startedAt = Date.now();
+}
+function toneStartedRecently(ms = 1200) {
+    const g = toneGate();
+    return !!(g && Date.now() - g.startedAt < ms);
+}
+
 const lastPlayedEvent = { id: '', at: 0 };
 const EVENT_DEDUP_MS = {
     driver_offer: 4500,
@@ -872,8 +898,18 @@ export function playEventTone(eventId, { platform = platformKey(), _fromFlush = 
         const now = Date.now();
         const windowMs = EVENT_DEDUP_MS[id] || 1600;
         if (!_fromFlush && lastPlayedEvent.id === id && now - lastPlayedEvent.at < windowMs) {
-            return true;
+            const g0 = toneGate();
+            const failedBefore = g0 && g0.id === id && g0.startedAt < g0.at;
+            if (!failedBefore) return true;
         }
+        // Otro sonido (de cualquier tipo) empezó hace muy poco: no encimar un segundo.
+        const gate = toneGate();
+        if (!_fromFlush && gate && now - gate.at < TONE_GATE_MS) {
+            // Reintento del MISMO aviso cuando el primer intento no llegó a sonar (Safari): dejarlo pasar
+            const retryOfFailed = gate.id === id && gate.startedAt < gate.at;
+            if (!retryOfFailed) return true;
+        }
+        if (gate) { gate.at = now; gate.id = id; }
         lastPlayedEvent.id = id;
         lastPlayedEvent.at = now;
         if (!_fromFlush) unlockNotificationTones();
@@ -901,6 +937,8 @@ export function playEventTone(eventId, { platform = platformKey(), _fromFlush = 
             [120, 400].forEach((ms) => {
                 setTimeout(() => {
                     try {
+                        // Solo reintentar si el primer intento NO llegó a sonar
+                        if (toneStartedRecently()) return;
                         if (sharedCtx?.state === 'running' || audioUnlocked) {
                             playFileUrl(tone.url);
                         }
