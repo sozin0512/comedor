@@ -1475,6 +1475,10 @@ function trashPopHtml(t) {
         <div class="vj-row" style="justify-content:flex-end;margin-top:10px"><button class="vj-b g" data-act="trashCancel">Cancelar</button><button class="vj-b red" data-act="trashYes" data-id="${esc(t.id)}">Sí, mover</button></div>
       </div>` : '';
 }
+// Viaje de pasajero (no envío ni pedido de tienda).
+function isRideTrip(t) {
+    return !!t && !(t.serviceType === 'delivery' || t.storeDelivery || t.storeOrderId || t.deliveryDetails?.storeOrderId);
+}
 function detailBody(t, { k, cause, devCause, chat, price, paid, pinVisible, c, trashBtn, pop, inDrawer }) {
     return `
     <div class="vj-row" style="flex-wrap:nowrap;align-items:flex-start">
@@ -1496,8 +1500,9 @@ function detailBody(t, { k, cause, devCause, chat, price, paid, pinVisible, c, t
     ${isCancelled(t) || t.status === "pending" || t.status === "accepted" || t.status === "in_progress" ? `
     <div class="vj-card" style="margin-top:12px;padding:10px 12px;background:#F8FAFC;border:1.5px solid #BFDBFE">
       <div style="font-weight:800;font-size:12.5px;color:#1E3A8A;margin-bottom:6px">🛵 Recuperar o reasignar pedido / viaje${(t.driverName || t.lastDriverName) ? ` · Conductor: ${esc(t.driverName || t.lastDriverName)}` : ""}</div>
+      ${isRideTrip(t) && isCancelled(t) ? `<div class="vj-sub" style="margin:0 0 8px;color:var(--ink)">¿El viaje sí se hizo pero quedó cancelado? Tocá <b>Marcar como completado</b>: se registra a nombre del conductor con el precio ${fmtL(price)} y <b>tu comisión</b>.</div>` : ""}
       <div class="vj-row" style="gap:6px;flex-wrap:wrap">
-        <button class="vj-b" style="background:#059669" data-act="markDelivered" data-id="${esc(t.id)}">✅ Marcar como Entregado</button>
+        <button class="vj-b" style="background:#059669" data-act="markDelivered" data-id="${esc(t.id)}">${isRideTrip(t) ? "✅ Marcar como completado" : "✅ Marcar como Entregado"}</button>
         ${(t.driverId || t.lastDriverId) ? `<button class="vj-b" style="background:#2563EB" data-act="restoreDriver" data-id="${esc(t.id)}" data-uid="${esc(t.driverId || t.lastDriverId)}">🔄 Devolver a ${esc(t.driverName || t.lastDriverName || "repartidor")}</button>` : ""}
         <button class="vj-b o" data-act="assign" data-id="${esc(t.id)}">🛵 Elegir / cambiar repartidor</button>
       </div>
@@ -1738,12 +1743,12 @@ function openAssign(id, { mode = "assign" } = {}) {
     if (!t) return;
     const list = driverCandidates(t);
     openModal(`
-      <h4>${mode === "delivered" ? "Marcar como Entregado · elegir repartidor" : "Asignar o devolver pedido a repartidor"} · ${shortId(t.id)}</h4>
-      <p class="vj-sub" style="margin:0 0 8px">${esc(placeOf(t, 'origin'))} → ${esc(placeOf(t, 'destination'))} · ${fmtL0(priceOf(t))}. Puedes <b>Devolverlo activo</b> al repartidor o <b>Marcarlo como Entregado</b> si ya lo entregó.</p>
+      <h4>${mode === "delivered" ? (isRideTrip(t) ? "Marcar como completado · elegir conductor" : "Marcar como Entregado · elegir repartidor") : "Asignar o devolver pedido a repartidor"} · ${shortId(t.id)}</h4>
+      <p class="vj-sub" style="margin:0 0 8px">${esc(placeOf(t, 'origin'))} → ${esc(placeOf(t, 'destination'))} · ${fmtL0(priceOf(t))}. ${isRideTrip(t) ? "Puedes <b>Devolverlo activo</b> al conductor o marcarlo como <b>Completado</b> si el viaje sí se hizo." : "Puedes <b>Devolverlo activo</b> al repartidor o <b>Marcarlo como Entregado</b> si ya lo entregó."}</p>
       ${list.map((d) => `<div class="row"><span><b>${esc(d.name)}</b>${d.prevAssigned ? ' <span class="vj-tag warn">Tenía el pedido</span>' : ''}<div class="vj-sub">${d.bid ? 'Ofertó · ' : d.viewed ? 'Lo vio · ' : ''}${d.online ? '<span style="color:var(--ok)">en línea</span>' : 'desconectado'}${d.km != null ? ` · ${d.km.toFixed(1)} km` : ''}</div></span>
         <span class="vj-row" style="gap:5px">
           <button class="vj-b" style="background:#2563EB" data-uid="${esc(d.uid)}" data-mode="assign">🔄 Cargar activo</button>
-          <button class="vj-b" style="background:#059669" data-uid="${esc(d.uid)}" data-mode="delivered">✅ Entregado</button>
+          <button class="vj-b" style="background:#059669" data-uid="${esc(d.uid)}" data-mode="delivered">${isRideTrip(t) ? "✅ Completado" : "✅ Entregado"}</button>
         </span></div>`).join('') || '<div class="vj-empty">No hay conductores para mostrar.</div>'}
       <div class="vj-row" style="justify-content:flex-end;margin-top:12px"><button class="vj-b g" data-close>Cerrar</button></div>`,
     (m) => m.querySelectorAll('button[data-uid]').forEach((b) => b.addEventListener('click', async () => {
@@ -2073,6 +2078,8 @@ function onClick(e, scope) {
                     driverId: uid,
                     driverName: t?.driverName || t?.lastDriverName || "",
                     mode: "mark_delivered",
+                    isRide: isRideTrip(t),
+                    priceHint: priceOf(t),
                 });
             } else {
                 openAssign(id, { mode: "delivered" });
