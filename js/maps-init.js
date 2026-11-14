@@ -4370,9 +4370,52 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const photos = data?.driverVehiclePhotos || data?.vehiclePhotos || {};
             return {
                 front: photos.exteriorFront || photos.extFront || null,
-                rear: photos.exteriorRear || photos.extRear || null
+                rear: photos.exteriorRear || photos.extRear || null,
+                // tpApplyPhotoPair lee «back»: sin esto la foto de atrás nunca se mostraba.
+                back: photos.exteriorRear || photos.extRear || null
             };
         };
+
+        // Visor de fotos dentro de la app (antes abría otra pestaña y en la APK no había cómo volver).
+        const tpOpenPhotoViewer = (src, caption) => {
+            if (!src) return;
+            document.getElementById('hr-photo-viewer')?.remove();
+            const ov = document.createElement('div');
+            ov.id = 'hr-photo-viewer';
+            ov.className = 'hr-photo-viewer';
+            ov.setAttribute('role', 'dialog');
+            ov.setAttribute('aria-modal', 'true');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'hr-photo-viewer-close';
+            btn.setAttribute('aria-label', 'Cerrar foto');
+            btn.textContent = '✕';
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = caption || 'Foto';
+            const cap = document.createElement('div');
+            cap.className = 'hr-photo-viewer-cap';
+            cap.textContent = `${caption ? caption + ' · ' : ''}Toca fuera de la foto o la ✕ para volver al viaje`;
+            ov.append(btn, img, cap);
+            const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+            const onKey = (e) => { if (e.key === 'Escape') close(); };
+            ov.addEventListener('click', (e) => { if (e.target !== img) close(); });
+            document.addEventListener('keydown', onKey);
+            document.body.appendChild(ov);
+        };
+        window.hrOpenPhotoViewer = tpOpenPhotoViewer;
+        if (!window.__hrPhotoViewerBound) {
+            window.__hrPhotoViewerBound = true;
+            document.addEventListener('click', (e) => {
+                const link = e.target?.closest?.('a.client-trip-vehicle-photo-card, a.driver-vehicle-photo-card');
+                if (!link) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const href = link.getAttribute('href') || '';
+                if (!href || href === '#') return;
+                tpOpenPhotoViewer(href, (link.querySelector('span')?.textContent || '').trim());
+            }, true);
+        }
 
         const tpResolveLicensePhotos = (data) => {
             const docs = data?.driverDocumentsPhotos || data?.documentsPhotos || {};
