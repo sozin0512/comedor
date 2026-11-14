@@ -546,13 +546,72 @@ const US_FREIGHT_RATE_CONFIG = {
     },
 };
 
+/**
+ * v118 · Tarifas de flete y grúa editables desde admin (appSettings.fixedFares.specialRates).
+ * Igual que las tarifas por km: el valor vive en window porque este módulo se carga en varias copias.
+ */
+export const SPECIAL_RATE_IDS = ['flete_paila', 'flete_camion', 'grua'];
+export const SPECIAL_RATE_FIELDS = ['minimum', 'baseFee', 'includedKm', 'perKmUrban', 'perKmLong', 'intercityPerKm'];
+
+function specialRateOverrides() {
+    try {
+        if (typeof window !== 'undefined' && window.__HR_SPECIAL_RATES && typeof window.__HR_SPECIAL_RATES === 'object') {
+            return window.__HR_SPECIAL_RATES;
+        }
+    } catch (_) {}
+    return {};
+}
+
+export function setSpecialRateOverrides(map) {
+    const clean = (map && typeof map === 'object') ? { ...map } : {};
+    try { window.__HR_SPECIAL_RATES = clean; } catch (_) {}
+    return clean;
+}
+
+/** Valores de fábrica (Lempiras) para mostrar en admin y completar lo que falte. */
+export function getDefaultSpecialRates() {
+    const pick = (c) => ({
+        minimum: c.minimum,
+        baseFee: c.baseFee,
+        includedKm: c.includedKm,
+        perKmUrban: c.perKmUrban,
+        perKmLong: c.perKmLong,
+        intercityPerKm: c.intercity?.perKm ?? 0,
+    });
+    return {
+        flete_paila: pick(FREIGHT_RATE_CONFIG.flete_paila),
+        flete_camion: pick(FREIGHT_RATE_CONFIG.flete_camion),
+        grua: { ...pick(TOW_RATE_CONFIG.grua), nightPercent: TOW_RATE_CONFIG.grua.nightPercent },
+        helperFee: FREIGHT_HELPER_FEE_PER_PERSON,
+    };
+}
+
+function applySpecialRate(config, id) {
+    const ov = specialRateOverrides()[id];
+    if (!config || !ov || typeof ov !== 'object') return config;
+    const num = (v, d) => (v != null && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : d);
+    const out = {
+        ...config,
+        minimum: num(ov.minimum, config.minimum),
+        baseFee: num(ov.baseFee, config.baseFee),
+        includedKm: num(ov.includedKm, config.includedKm),
+        perKmUrban: num(ov.perKmUrban, config.perKmUrban),
+        perKmLong: num(ov.perKmLong, config.perKmLong),
+        intercity: { ...(config.intercity || {}), perKm: num(ov.intercityPerKm, config.intercity?.perKm) },
+    };
+    if (config.nightPercent != null) out.nightPercent = Math.min(100, num(ov.nightPercent, config.nightPercent));
+    return out;
+}
+
 function getFreightRateConfig(type) {
-    const map = isUsMarket() ? US_FREIGHT_RATE_CONFIG : FREIGHT_RATE_CONFIG;
-    return map[type] || FREIGHT_RATE_CONFIG[type];
+    if (isUsMarket()) return US_FREIGHT_RATE_CONFIG[type] || FREIGHT_RATE_CONFIG[type];
+    return applySpecialRate(FREIGHT_RATE_CONFIG[type], type);
 }
 
 function getFreightHelperFeePerPerson() {
-    return isUsMarket() ? US_FREIGHT_HELPER_FEE : FREIGHT_HELPER_FEE_PER_PERSON;
+    if (isUsMarket()) return US_FREIGHT_HELPER_FEE;
+    const v = specialRateOverrides().helperFee;
+    return (v != null && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0) ? Number(v) : FREIGHT_HELPER_FEE_PER_PERSON;
 }
 
 export function normalizeFreightHelperCount(details = {}) {
@@ -1061,7 +1120,7 @@ const US_TOW_RATE_CONFIG = {
 };
 
 function getTowRateConfig() {
-    return isUsMarket() ? US_TOW_RATE_CONFIG.grua : TOW_RATE_CONFIG.grua;
+    return isUsMarket() ? US_TOW_RATE_CONFIG.grua : applySpecialRate(TOW_RATE_CONFIG.grua, 'grua');
 }
 
 function usdFromHnlTow(n) {

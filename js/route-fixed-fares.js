@@ -10,7 +10,8 @@ import { haversineKm, findZoneForCoords, findNearestZone, getZoneById } from './
 import {
     normalizeServiceType, isFreightService, isTowService,
     setServiceRateOverrides, getDefaultServiceRates,
-} from './service-types.js?v=2026.10.25.4';
+    setSpecialRateOverrides, getDefaultSpecialRates, SPECIAL_RATE_IDS, SPECIAL_RATE_FIELDS,
+} from './service-types.js?v=2026.10.26.118';
 
 import { formatLempiras } from './money-format.js';
 const HN_TZ = 'America/Tegucigalpa';
@@ -281,7 +282,22 @@ export function normalizeFixedFaresConfig(raw) {
         };
     });
 
+    // Flete (paila / camión) y grúa: completar con los valores de fábrica lo que no esté guardado.
+    const defSpecial = getDefaultSpecialRates();
+    const srcSpecial = (src.specialRates && typeof src.specialRates === 'object') ? src.specialRates : {};
+    const specialRates = {};
+    SPECIAL_RATE_IDS.forEach((id) => {
+        const d = defSpecial[id] || {};
+        const o = (srcSpecial[id] && typeof srcSpecial[id] === 'object') ? srcSpecial[id] : {};
+        const row = {};
+        SPECIAL_RATE_FIELDS.forEach((f) => { row[f] = Math.max(0, toNum(o[f], d[f] ?? 0)); });
+        if (d.nightPercent != null) row.nightPercent = Math.max(0, Math.min(100, toNum(o.nightPercent, d.nightPercent)));
+        specialRates[id] = row;
+    });
+    specialRates.helperFee = Math.max(0, toNum(srcSpecial.helperFee, defSpecial.helperFee));
+
     return {
+        specialRates,
         minFare: Math.max(0, toNum(src.minFare, base.minFare)),
         minFareEnabled: src.minFareEnabled === false ? false : true,
         minFareMoto: src.minFareMoto === true,
@@ -303,6 +319,9 @@ export function setFixedFaresConfig(raw) {
     runtimeConfig = normalizeFixedFaresConfig(raw);
     try {
         setServiceRateOverrides(runtimeConfig.serviceRates || {});
+    } catch (_) {}
+    try {
+        setSpecialRateOverrides(runtimeConfig.specialRates || {});
     } catch (_) {}
     try {
         window.__HR_FIXED_FARES = runtimeConfig;
