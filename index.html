@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.116">
+    <meta name="hr-app-version" content="2026.10.26.117">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -52,6 +52,53 @@
             };
         })();
     </script>
+    <script>
+        // v117 · Pantalla negra al volver de otra app (iPhone): a veces iOS no vuelve a pintar la página
+        // aunque el código siga vivo. Al volver: 1) se fuerza un repintado; 2) si en 1.5 s no se dibujó
+        // ningún cuadro, se insiste; 3) si a los 6 s sigue sin dibujar (solo iPhone/iPad), se recarga
+        // la app una vez (el viaje activo se restaura solo al cargar).
+        (function () {
+            try {
+                var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+                    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                var seq = 0;
+                function nudge() {
+                    try {
+                        var el = document.documentElement;
+                        el.style.transform = 'translateZ(0)';
+                        void el.offsetHeight;
+                        el.style.transform = '';
+                        window.scrollBy(0, 0);
+                        window.dispatchEvent(new Event('resize'));
+                    } catch (e) {}
+                }
+                function onBack() {
+                    if (document.visibilityState !== 'visible') return;
+                    var my = ++seq, painted = false;
+                    nudge();
+                    try { requestAnimationFrame(function () { requestAnimationFrame(function () { painted = true; }); }); } catch (e) { painted = true; }
+                    setTimeout(function () {
+                        if (my !== seq || painted || document.visibilityState !== 'visible') return;
+                        nudge();
+                        try { requestAnimationFrame(function () { painted = true; }); } catch (e) {}
+                    }, 1500);
+                    setTimeout(function () {
+                        if (my !== seq || painted || !isIOS || document.visibilityState !== 'visible') return;
+                        try {
+                            var last = Number(sessionStorage.getItem('hr_black_reload_at')) || 0;
+                            if (Date.now() - last < 120000) return;
+                            sessionStorage.setItem('hr_black_reload_at', String(Date.now()));
+                        } catch (e) {}
+                        location.reload();
+                    }, 6000);
+                }
+                document.addEventListener('visibilitychange', function () {
+                    if (document.visibilityState === 'visible') onBack(); else seq++;
+                });
+                window.addEventListener('pageshow', function (e) { if (e && e.persisted) onBack(); });
+            } catch (e) {}
+        })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
@@ -67,14 +114,14 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.116">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.117">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.116">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.117">
     <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.59">
     <link rel="stylesheet" href="css/pedido-doble.css?v=2026.10.26.59">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.116">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.116">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.117">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.117">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -122,7 +169,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.116"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.117"></script>
     <script defer src="js/busqueda-f.js?v=2026.10.26.59"></script>
     <script type="module" src="js/pedido-doble.js?v=2026.10.26.59"></script>
     <script type="module" src="js/user-city.js?v=2026.10.26.59"></script>
@@ -442,10 +489,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.116';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.117';
         (function () {
             try {
-                var build = '2026.10.26.116';
+                var build = '2026.10.26.117';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
