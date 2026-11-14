@@ -23,6 +23,7 @@ let activeLiveTripId = null;
 let bgNotifySentForTrip = null;
 let pulseHandler = null;
 let statusEl = null;
+let hiddenSince = 0;
 
 function isLiveTrip(trip) {
     if (!trip?.id || !LIVE_STATUSES.has(trip.status)) return false;
@@ -203,10 +204,57 @@ function startGpsHealthWatch() {
     gpsHealthTimer = setInterval(() => {
         if (!activeLiveTripId) return;
         updateStatusPill(currentTrip());
+        updatePassengerStaleChip(currentTrip());
     }, 4000);
 }
 
+// ── Pasajero: avisar cuando la ubicación del conductor dejó de llegar ──
+// Se mide con el reloj de ESTE teléfono (cuándo llegó el último cambio), así no importa
+// si el reloj del conductor está adelantado o atrasado. No hace lecturas ni usa Mapas.
+const PAX_STALE_MS = 25000;
+let paxStaleEl = null;
+let paxSeenStamp = '';
+let paxSeenAt = 0;
+let paxSeenTrip = null;
+
+function hidePassengerStaleChip() {
+    if (paxStaleEl) paxStaleEl.classList.add('hidden');
+}
+
+function updatePassengerStaleChip(trip) {
+    if (!trip || !isLiveTrip(trip) || !trip.driverId || isDriverOnTrip(trip) || document.hidden) {
+        hidePassengerStaleChip();
+        return;
+    }
+    const now = Date.now();
+    // Cualquier señal de vida del conductor: marca de tiempo en el viaje o posición nueva.
+    const lp = window._lastDriverFirebasePos;
+    const stamp = `${Number(trip.driverLiveUpdatedAt) || 0}|${lp?.lat ?? ''}|${lp?.lng ?? ''}`;
+    if (paxSeenTrip !== trip.id || stamp !== paxSeenStamp || !paxSeenAt) {
+        paxSeenTrip = trip.id;
+        paxSeenStamp = stamp;
+        paxSeenAt = now;
+    }
+    const age = now - paxSeenAt;
+    if (age < PAX_STALE_MS) {
+        hidePassengerStaleChip();
+        return;
+    }
+    if (!paxStaleEl || !paxStaleEl.isConnected) {
+        paxStaleEl = document.createElement('div');
+        paxStaleEl.id = 'hr-track-stale-chip';
+        paxStaleEl.className = 'hr-track-stale-chip hidden';
+        paxStaleEl.setAttribute('aria-live', 'polite');
+        document.body.appendChild(paxStaleEl);
+    }
+    const secs = Math.round(age / 1000);
+    const ago = secs < 90 ? `${secs} s` : `${Math.round(secs / 60)} min`;
+    paxStaleEl.textContent = `Última ubicación del conductor hace ${ago} · puede tener mala señal`;
+    paxStaleEl.classList.remove('hidden');
+}
+
 function stopGpsHealthWatch() {
+    hidePassengerStaleChip();
     if (!gpsHealthTimer) return;
     clearInterval(gpsHealthTimer);
     gpsHealthTimer = null;
@@ -248,6 +296,17 @@ async function onVisibilityChange() {
     const trip = currentTrip();
 
     if (document.visibilityState === 'visible') {
+        // Pasajero: al volver, dar tiempo a que llegue la posición nueva antes de avisar.
+        paxSeenAt = Date.now();
+        // Conductor sin GPS en segundo plano (iPhone / web): avisarle cuánto estuvo sin enviar.
+        if (hiddenSince && trip && isDriverOnTrip(trip) && !isCapacitorAndroid()) {
+            const away = Math.round((Date.now() - hiddenSince) / 1000);
+            if (away >= 20) {
+                const txt = away < 90 ? `${away} segundos` : `${Math.round(away / 60)} min`;
+                window.showToast?.(`El pasajero no vio tu ubicación durante ${txt}. Dejá HonduRaite abierta y con la pantalla encendida durante el viaje.`, 'warning');
+            }
+        }
+        hiddenSince = 0;
         stopBackgroundPulse();
         await requestTripWakeLock();
         updateStatusPill(trip);
@@ -258,6 +317,7 @@ async function onVisibilityChange() {
         // En APK seguimos pulsando GPS en primer plano (más fluido)
         if (isCapacitorAndroid()) startBackgroundPulse();
     } else {
+        hiddenSince = Date.now();
         startBackgroundPulse();
         updateStatusPill(trip);
         if (trip) syncAndroidLiveTripKeepaliveImpl(trip).catch(() => {});

@@ -1479,6 +1479,17 @@ function trashPopHtml(t) {
 function isRideTrip(t) {
     return !!t && !(t.serviceType === 'delivery' || t.storeDelivery || t.storeOrderId || t.deliveryDetails?.storeOrderId);
 }
+// Seguimiento en vivo: desde qué teléfono iba el conductor y el hueco más largo sin ubicación.
+function liveGpsLine(t) {
+    const plat = String(t?.driverLivePlatform || '');
+    if (!plat) return '';
+    const names = { 'app-android': 'App Android', 'app-ios': 'App iPhone', 'web-iphone': 'iPhone (web)', 'web-android': 'Android (web)', 'web-pc': 'Computadora (web)' };
+    const gap = Number(t.driverLiveMaxGapS) || 0;
+    const gapTxt = gap >= 90 ? `${Math.round(gap / 60)} min` : `${gap} s`;
+    const bad = gap >= 60;
+    const noBg = plat !== 'app-android';
+    return `<div class="vj-warnbar ${bad ? 'red' : ''}" style="margin-top:12px;${gap < 30 ? 'background:#F0FDF4;border-color:#BBF7D0;color:#166534' : ''}"><span><b>Seguimiento GPS:</b> ${esc(names[plat] || plat)}${t.driverLiveAppVersion ? ` · v${esc(String(t.driverLiveAppVersion).split('.').pop())}` : ''} · ${gap ? `hueco más largo sin ubicación: <b>${gapTxt}</b>` : 'sin huecos'}${bad && noBg ? ' · este teléfono no envía ubicación con la app cerrada' : ''}</span></div>`;
+}
 function detailBody(t, { k, cause, devCause, chat, price, paid, pinVisible, c, trashBtn, pop, inDrawer }) {
     return `
     <div class="vj-row" style="flex-wrap:nowrap;align-items:flex-start">
@@ -1497,6 +1508,7 @@ function detailBody(t, { k, cause, devCause, chat, price, paid, pinVisible, c, t
       <div><div class="k">${(t.serviceType === 'delivery' || t.storeDelivery || t.storeOrderId) ? 'FLUJO ENVÍO' : 'PIN DE VIAJE'}</div>${(t.serviceType === 'delivery' || t.storeDelivery || t.storeOrderId) ? '<div style="margin-top:3px;font-weight:800;color:#059669">Sin PIN (envío)</div><div class="vj-sub">1. Negocio → 2. Cliente</div>' : `<div style="margin-top:3px;font-size:16px;letter-spacing:3px" class="num">${pinVisible ? esc(pinVisible) : (t.pin || t.tripPin || t.hasPin ? '• • • •' : '—')}</div>${t.pin || t.tripPin || t.hasPin ? `<span class="vj-link vj-sub" data-act="pin" data-id="${esc(t.id)}">Mostrar (queda en el registro)</span>` : '<div class="vj-sub">Sin PIN</div>'}`}</div>
       <div><div class="k">PRECIO Y FACTURA</div><div style="margin-top:3px">${paid ? 'Cobrado' : 'Base'} <b>${fmtL(price)}</b>${paid ? ` · comisión ${fmtL(c.amount)} (${c.pct}%)` : ' · cobro L 0.00'}</div>${paid ? `<span class="vj-link vj-sub" data-act="factura" data-id="${esc(t.id)}">Ver factura</span>` : '<div class="vj-sub">Sin factura (no hubo cobro)</div>'}</div>
     </div>
+    ${liveGpsLine(t)}
     ${isCancelled(t) || t.status === "pending" || t.status === "accepted" || t.status === "in_progress" ? `
     <div class="vj-card" style="margin-top:12px;padding:10px 12px;background:#F8FAFC;border:1.5px solid #BFDBFE">
       <div style="font-weight:800;font-size:12.5px;color:#1E3A8A;margin-bottom:6px">🛵 Recuperar o reasignar pedido / viaje${(t.driverName || t.lastDriverName) ? ` · Conductor: ${esc(t.driverName || t.lastDriverName)}` : ""}</div>
