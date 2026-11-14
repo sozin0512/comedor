@@ -28237,3 +28237,25 @@ body.driver-mode #passenger-waiting-lock { display: none !important; }
 /* v.112 · Conductor: enlace «¿No podés finalizar? Finalizar aquí» */
 .driver-finish-here-btn { padding: 0.6rem; border-radius: 12px; background: #eef4ff; border: 1px dashed #b9d3fb; color: #123a7a; font-weight: 800; font-size: 0.72rem; }
 .driver-finish-here-btn.hidden { display: none !important; }
+
+/* v114 — Pasajero: aviso cuando la ubicación del conductor dejó de llegar */
+.hr-track-stale-chip {
+    position: fixed;
+    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 104px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 11990;
+    max-width: min(92vw, 360px);
+    padding: 0.45rem 0.85rem;
+    border-radius: 9999px;
+    background: #FEF3C7;
+    color: #92400E;
+    border: 1.5px solid #FCD34D;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.25;
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+    pointer-events: none;
+}
+.hr-track-stale-chip.hidden { display: none; }
