@@ -315,6 +315,16 @@ function shouldShowFleetDriver(uid, data) {
 
 export function shouldRenderFleetMarkerOnMap(uid, data, filterOverride = null) {
     if (!shouldShowFleetDriver(uid, data)) return false;
+    // Si el que mira (admin/supervisor) va como PASAJERO con este conductor, el seguimiento del viaje
+    // ya dibuja su carro: la flota no debe pintar otro encima (se veían dos carros al llegar).
+    try {
+        const vt = window.currentActiveTripData;
+        const me = window.currentUser?.uid;
+        if (vt && vt.driverId === uid && ['accepted', 'in_progress'].includes(vt.status)
+            && ((me && vt.clientId === me) || window._guestFollowTripId === vt.id)) {
+            return false;
+        }
+    } catch (_) {}
     const state = filterOverride || fleetFilterState;
     if (state.statusMode === 'online' && !isFleetDriverOnlineOrInTrip(uid, data)) {
         return false;
@@ -677,6 +687,15 @@ function upsertFleetMarker(id, lat, lng, name, vehicleType, heading, phone, opti
             lastUpdatePerf: performance.now()
         };
         window.driverMarkers = window.driverMarkers || {};
+        // No dejar huérfano en el mapa el marcador anterior de este conductor (carro duplicado).
+        const prev = window.driverMarkers[id];
+        if (prev && prev !== marker) {
+            try {
+                if ('map' in prev) prev.map = null;
+                if (typeof prev.setMap === 'function') prev.setMap(null);
+            } catch (_) {}
+            if (window._driverMarkerMeta) delete window._driverMarkerMeta[id];
+        }
         window.driverMarkers[id] = marker;
     }
 }
