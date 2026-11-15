@@ -81,7 +81,14 @@ export function driverQualifiesForCategory(driver, category, cutoffs) {
 
 export function categoryRate(rates, category) {
     const id = isRideCategory(category) ? category : 'economico';
-    const fallback = RIDE_CATEGORY_RATE_DEFAULTS[id] || RIDE_CATEGORY_RATE_DEFAULTS.economico;
+    const factory = RIDE_CATEGORY_RATE_DEFAULTS[id] || RIDE_CATEGORY_RATE_DEFAULTS.economico;
+    const auto = rates && rates.auto && typeof rates.auto === 'object' ? rates.auto : null;
+    const autoBase = Number(auto?.base);
+    const autoKm = Number(auto?.perKm);
+    const fallback = {
+        base: Number.isFinite(autoBase) && autoBase >= 0 ? autoBase : factory.base,
+        perKm: Number.isFinite(autoKm) && autoKm >= 0 ? autoKm : factory.perKm
+    };
     const row = rates && rates[id] && typeof rates[id] === 'object' ? rates[id] : {};
     const base = Number(row.base);
     const perKm = Number(row.perKm);

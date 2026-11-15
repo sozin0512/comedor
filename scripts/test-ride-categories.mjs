@@ -60,6 +60,9 @@ eq('moto disponible', flags.moto, true);
 eq('sin datos del mapa no se apaga nada', categoryAvailability([], null, { known: false }).vip, true);
 
 eq('tarifa de fábrica 5 km', quoteCategoryFare(null, 'confort', 5), 37 + 22 * 5);
+eq('sin fila propia usa Taxi VIP', quoteCategoryFare({ auto: { base: 0, perKm: 19 } }, 'economico', 6.6357142857), 126.08);
+eq('confort sin fila tampoco pasa a Taxi VIP', quoteCategoryFare({ auto: { base: 0, perKm: 19 } }, 'confort', 6.6357142857), 126.08);
+eq('servidor: económico sin fila = Taxi VIP', server.quoteCategoryFare({ auto: { base: 0, perKm: 19 } }, 'economico', 6.6357142857), 126.08);
 eq('el admin puede cambiar confort', quoteCategoryFare({ confort: { base: 50, perKm: 10 } }, 'confort', 5), 100);
 eq('servidor cobra igual', server.quoteCategoryFare({ familiar: { base: 40, perKm: 8 } }, 'familiar', 5), 80);
 eq('servidor: sin datos no es confort', server.driverQualifiesForCategory(sinDatos, 'confort'), false);

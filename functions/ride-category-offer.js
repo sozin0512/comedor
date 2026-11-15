@@ -62,7 +62,14 @@ function driverQualifiesForCategory(driver, category, cutoffs) {
 
 function categoryRate(rates, category) {
     const id = IDS.includes(category) ? category : 'economico';
-    const fallback = DEFAULTS[id];
+    const factory = DEFAULTS[id];
+    const auto = rates && rates.auto && typeof rates.auto === 'object' ? rates.auto : null;
+    const autoBase = Number(auto && auto.base);
+    const autoKm = Number(auto && auto.perKm);
+    const fallback = {
+        base: Number.isFinite(autoBase) && autoBase >= 0 ? autoBase : factory.base,
+        perKm: Number.isFinite(autoKm) && autoKm >= 0 ? autoKm : factory.perKm
+    };
     const row = rates && rates[id] && typeof rates[id] === 'object' ? rates[id] : {};
     const base = Number(row.base);
     const perKm = Number(row.perKm);
