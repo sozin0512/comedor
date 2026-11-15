@@ -27842,6 +27842,51 @@ body.client-mode.passenger-mode-active:not(.trip-active):not(.is-searching):not(
     max-height: min(88dvh, 56rem) !important;
     height: auto !important;
 }
+/* Viaje expandido: la hoja tapa el mapa. Minimizar y el pin del mapa siguen igual. */
+body.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    z-index: 28000 !important;
+    background: #f4f7fb !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-top: max(12px, env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(8px + max(12px, env(safe-area-inset-bottom, 0px))) !important;
+}
+body.android-3btn.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    padding-bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px)) !important;
+}
+body.android-gesture.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #control-panel:not(.panel-collapsed):not(.panel-hidden),
+body.capacitor-ios.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    padding-bottom: calc(8px + max(20px, env(safe-area-inset-bottom, 0px))) !important;
+}
+body.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #control-panel:not(.panel-collapsed):not(.panel-hidden) #panel-content {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+body.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #app-header,
+body.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #ops-fleet-map-hud,
+body.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #passenger-copa-active,
+body.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) #passenger-city-bar,
+body.client-mode.passenger-mode-trip:not(.driver-mode):not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed):not(.map-pick-mode):not(.trip-autocomplete-open):not(:has(.is-autocomplete-active)) .nav-fab {
+    display: none !important;
+}
 body.client-mode.passenger-mode-active:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
     max-height: none !important;
 }
