@@ -24,7 +24,8 @@ export const RIDE_CATEGORY_RATE_DEFAULTS = {
     vip: { base: 37, perKm: 22 }
 };
 
-const CAR_TYPES = new Set(['auto', 'taxi', 'vip', 'taxi_vip']);
+/** Quién toma Taxi VIP. El taxi tradicional (placa T-) no entra: sigue en el botón Taxi. */
+const CAR_TYPES = new Set(['auto', 'vip', 'taxi_vip']);
 
 export function rideCategoryLabel(id) {
     return RIDE_CATEGORY_LABELS[id] || '';

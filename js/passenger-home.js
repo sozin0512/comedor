@@ -239,6 +239,12 @@ function ensureHomeUi() {
                     <button type="button" data-hrh-svc="auto"><i class="fas fa-car"></i><span>Taxi VIP</span></button>
                     <button type="button" data-hrh-svc="taxi"><i class="fas fa-taxi"></i><span>Taxi</span></button>
                 </div>
+                <div class="hrh-vip-cats" hidden>
+                    <button type="button" data-ride-category="economico"><i class="fas fa-car"></i><span>Económico</span></button>
+                    <button type="button" data-ride-category="confort"><i class="fas fa-snowflake"></i><span>Confort</span></button>
+                    <button type="button" data-ride-category="familiar"><i class="fas fa-users"></i><span>Familiar</span></button>
+                    <button type="button" data-ride-category="vip"><i class="fas fa-crown"></i><span>VIP</span></button>
+                </div>
                 <div class="passenger-home-grid hrh-grid" role="list">
                     ${card('trip', 'trip', '<i class="fas fa-car-side"></i>', 'Viaje', 'Moto · VIP · Taxi', 'title="Moto, Taxi VIP o taxi tradicional"')}
                     ${card('tow', 'tow', '<i class="icon-grua" aria-hidden="true"></i>', 'Grúa', 'Remolque', 'title="Remolque y auxilio"')}
@@ -283,6 +289,17 @@ function ensureHomeUi() {
                 if (rec) { e.preventDefault(); applyRecentPlace(Number(rec.getAttribute('data-hrh-recent'))); return; }
                 const go = e.target.closest('[data-hrh-go]');
                 if (go) { e.preventDefault(); setPassengerHomeMode(go.getAttribute('data-hrh-go')); return; }
+                const catBtn = e.target.closest('[data-ride-category]');
+                if (catBtn && hub.contains(catBtn)) {
+                    e.preventDefault();
+                    const id = catBtn.getAttribute('data-ride-category');
+                    if (catBtn.classList.contains('hrh-off')) {
+                        window.showToast?.('Ahora no hay un conductor de esa categoría cerca. Elegí otra o Económico.', 'warning');
+                        return;
+                    }
+                    window.selectRideCategory?.(id);
+                    return;
+                }
                 const svcBtn = e.target.closest('[data-hrh-svc]');
                 if (svcBtn) {
                     e.preventDefault();
@@ -294,7 +311,21 @@ function ensureHomeUi() {
                         try { showServiceUnavailableSheet(label, why); } catch (_) {}
                         return;
                     }
-                    window._hrHomePreferredService = svcBtn.getAttribute('data-hrh-svc');
+                    const svc = svcBtn.getAttribute('data-hrh-svc');
+                    if (svc === 'auto') {
+                        const already = hub.getAttribute('data-hrh-svc') === 'auto';
+                        hub.setAttribute('data-hrh-svc', 'auto');
+                        window._hrHomePreferredService = 'auto';
+                        if (!['economico', 'confort', 'familiar', 'vip'].includes(window.currentRideCategory)) {
+                            window.currentRideCategory = 'economico';
+                        }
+                        paintHomeRideCategory();
+                        if (already) setPassengerHomeMode('trip');
+                        return;
+                    }
+                    hub.removeAttribute('data-hrh-svc');
+                    window.currentRideCategory = svc === 'moto' ? 'moto' : null;
+                    window._hrHomePreferredService = svc;
                     setPassengerHomeMode('trip');
                 }
             });
@@ -527,11 +558,16 @@ function syncHomeCardsForCity() {
             return;
         }
         if (mode === 'trip') {
-            const parts = [];
-            if (!isServiceTypeDisabledInCity('moto', zoneId)) parts.push('Moto');
-            if (!isServiceTypeDisabledInCity('auto', zoneId)) parts.push('VIP');
-            if (!isUsMarket() && !isServiceTypeDisabledInCity('taxi', zoneId)) parts.push('Taxi');
-            small.textContent = parts.length ? parts.join(' · ') : 'Viajes';
+            const chosen = hub.getAttribute('data-hrh-svc') === 'auto' ? homeRideCategoryLabel() : '';
+            if (chosen) {
+                small.textContent = chosen;
+            } else {
+                const parts = [];
+                if (!isServiceTypeDisabledInCity('moto', zoneId)) parts.push('Moto');
+                if (!isServiceTypeDisabledInCity('auto', zoneId)) parts.push('VIP');
+                if (!isUsMarket() && !isServiceTypeDisabledInCity('taxi', zoneId)) parts.push('Taxi');
+                small.textContent = parts.length ? parts.join(' · ') : 'Viajes';
+            }
         } else if (mode === 'freight') {
             const parts = [];
             if (!isServiceTypeDisabledInCity('flete_paila', zoneId)) parts.push('Paila');
@@ -542,7 +578,45 @@ function syncHomeCardsForCity() {
         }
     });
     try { window.hrPaintWaitingLockOnHome?.(); } catch (_) {}
+    paintHomeRideCategory();
 }
+
+const HOME_RIDE_LABELS = {
+    economico: 'Raite Económico',
+    confort: 'Raite Confort',
+    familiar: 'Raite Familiar',
+    vip: 'Raite VIP'
+};
+
+function homeRideCategoryLabel() {
+    const id = ['economico', 'confort', 'familiar', 'vip'].includes(window.currentRideCategory)
+        ? window.currentRideCategory
+        : 'economico';
+    return HOME_RIDE_LABELS[id];
+}
+
+/** Fila de categorías debajo de Taxi VIP. Moto y Taxi no la muestran. */
+function paintHomeRideCategory() {
+    const hub = document.getElementById('passenger-home-hub');
+    if (!hub) return;
+    const vipOn = hub.getAttribute('data-hrh-svc') === 'auto';
+    const row = hub.querySelector('.hrh-pane[data-hrh-pane="raites"] .hrh-vip-cats');
+    if (row) row.hidden = !vipOn;
+    hub.querySelectorAll('[data-hrh-svc]').forEach((btn) => {
+        btn.classList.toggle('hrh-on', vipOn && btn.getAttribute('data-hrh-svc') === 'auto');
+    });
+    const current = ['economico', 'confort', 'familiar', 'vip'].includes(window.currentRideCategory)
+        ? window.currentRideCategory
+        : 'economico';
+    hub.querySelectorAll('[data-ride-category]').forEach((btn) => {
+        btn.classList.toggle('hrh-on', vipOn && btn.getAttribute('data-ride-category') === current);
+    });
+    const small = hub.querySelector('[data-home-mode="trip"] small');
+    if (vipOn && small && !small.querySelector('.passenger-home-off')) {
+        small.textContent = homeRideCategoryLabel();
+    }
+}
+try { window.paintHomeRideCategory = paintHomeRideCategory; } catch (_) {}
 try { window.refreshPassengerHomeCityServices = () => { try { syncHomeCardsForCity(); } catch (_) {} }; } catch (_) {}
 
 function setChipVisible(btn, show) {
@@ -635,7 +709,7 @@ function applyMode(mode) {
     document.body.classList.toggle('passenger-mode-active', mode !== 'home');
     document.body.classList.toggle('passenger-mode-trip', mode === 'trip');
     if (mode === 'trip') window.ensureDefaultRideCategory?.();
-    else window.currentRideCategory = null;
+    else if (mode !== 'home') window.currentRideCategory = null;
     document.body.classList.toggle('passenger-mode-delivery', mode === 'delivery');
     document.body.classList.toggle('passenger-mode-freight', mode === 'freight');
     document.body.classList.toggle('passenger-mode-tow', mode === 'tow');

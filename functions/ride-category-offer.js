@@ -2,7 +2,8 @@
  * Misma regla que js/ride-category-offer.js, para el aviso y la aceptación en el servidor.
  * Conductor sin año/aire/asientos: solo Raite Económico.
  */
-const CAR_TYPES = new Set(['auto', 'taxi', 'vip', 'taxi_vip']);
+/** Taxi VIP (auto / vip / taxi_vip). El taxi de placa T- no entra en estas categorías. */
+const CAR_TYPES = new Set(['auto', 'vip', 'taxi_vip']);
 const IDS = ['moto', 'economico', 'confort', 'familiar', 'vip'];
 const DEFAULTS = {
     moto: { base: 20, perKm: 18 },

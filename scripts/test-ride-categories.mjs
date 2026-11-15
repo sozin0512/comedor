@@ -37,7 +37,8 @@ eq('2022 es vip', driverRideCategory(vip), 'vip');
 
 eq('económico: cualquier carro', driverQualifiesForCategory(sinDatos, 'economico'), true);
 eq('económico: también un VIP', driverQualifiesForCategory(vip, 'economico'), true);
-eq('económico: taxi también', driverQualifiesForCategory(taxi, 'economico'), true);
+eq('económico: el taxi tradicional no', driverQualifiesForCategory(taxi, 'economico'), false);
+eq('económico: un Taxi VIP sí', driverQualifiesForCategory({ vehicleType: 'taxi_vip', vehicleYear: 2014, seats: 4 }, 'economico'), true);
 eq('económico: moto no', driverQualifiesForCategory(moto, 'economico'), false);
 eq('confort solo quien califica', driverQualifiesForCategory(confort, 'confort'), true);
 eq('sin datos no toma confort', driverQualifiesForCategory(sinDatos, 'confort'), false);
@@ -58,7 +59,8 @@ eq('tarifa de fábrica 5 km', quoteCategoryFare(null, 'confort', 5), 37 + 22 * 5
 eq('el admin puede cambiar confort', quoteCategoryFare({ confort: { base: 50, perKm: 10 } }, 'confort', 5), 100);
 eq('servidor cobra igual', server.quoteCategoryFare({ familiar: { base: 40, perKm: 8 } }, 'familiar', 5), 80);
 eq('servidor: sin datos no es confort', server.driverQualifiesForCategory(sinDatos, 'confort'), false);
-eq('servidor: económico para todo carro', server.driverQualifiesForCategory(sinDatos, 'economico'), true);
+eq('servidor: económico para todo Taxi VIP', server.driverQualifiesForCategory(sinDatos, 'economico'), true);
+eq('servidor: taxi tradicional no', server.driverQualifiesForCategory(taxi, 'economico'), false);
 eq('servidor: familiar', server.driverQualifiesForCategory(familiar, 'familiar'), true);
 
 if (failed) {

@@ -2,35 +2,62 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>Categorías de viaje</title>
+    <title>Taxi VIP · categorías</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        html, body { margin: 0; background: #e8eef5; font-family: Inter, system-ui, sans-serif; }
-        .phone { max-width: 390px; margin: 0 auto; background: #f8fafc; min-height: 100vh; padding: 16px 12px 28px; box-sizing: border-box; }
-        .picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
-        .trip-service-chip {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 0.15rem; min-height: 2.85rem; padding: 0.45rem 0.2rem; border-radius: 0.85rem;
-            border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.58rem; font-weight: 900;
-            letter-spacing: 0.02em; text-transform: uppercase; color: #64748b;
-        }
-        .trip-service-chip i { font-size: 1rem; }
-        .trip-service-chip.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
-        .trip-service-chip.is-unavailable { opacity: 0.42; filter: grayscale(0.85); }
-        .dock { margin-top: 18px; }
-        .dock button { width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: #2563eb; color: #fff; font-weight: 900; }
-        h2 { font-size: 15px; margin: 0 0 10px; }
-        .offer { background: #fff; border-radius: 16px; padding: 14px; border: 1px solid #e2e8f0; }
-        .offer b { color: #1d4ed8; }
-        .admin { background: #0f172a; color: #e2e8f0; border-radius: 16px; padding: 12px; }
-        .admin h3 { color: #7dd3fc; font-size: 13px; margin: 0 0 8px; }
-        .grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
-        .card { background: rgba(2,6,23,.4); border: 1px solid rgba(51,65,85,.6); border-radius: 12px; padding: 8px; }
-        .card p { margin: 0 0 6px; font-size: 11px; font-weight: 900; color: #fff; }
-        .row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 10px; color: #94a3b8; font-weight: 700; }
+        html, body { margin: 0; background: #eef3f9; font-family: Inter, system-ui, sans-serif; }
+        .phone { width: 390px; margin: 0 auto; background: #f4f7fb; min-height: 100vh; box-sizing: border-box; }
+        .hrh { --hn: #0a1f44; --hn2: #123a7a; --hb: #1e6bd6; --hi: #0b1730; --hm: #5b6b85; padding: 0 0 0.2rem; }
+        .hero { position: relative; overflow: hidden; padding: 0.75rem 0.9rem 0.85rem; color: #fff;
+            background: radial-gradient(120% 90% at 85% 0%, #2a5fb8 0%, var(--hn2) 35%, var(--hn) 75%); }
+        .kicker { margin: 0; font-size: 0.58rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: #bcd4ff; }
+        .title { margin: 0.1rem 0 0.5rem; font-size: 1.25rem; font-weight: 900; font-style: italic; }
+        .search { height: 2.7rem; border-radius: 15px; background: #fff; color: var(--hi); display: flex; align-items: center; gap: 0.55rem; padding: 0 0.85rem; font-weight: 900; }
+        .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--hb); box-shadow: 0 0 0 4px rgba(30,107,214,.2); }
+        .search i { margin-left: auto; color: var(--hb); }
+        .flag { height: 4px; background: linear-gradient(90deg, var(--hb) 0 33%, #fff 33% 66%, var(--hb) 66%); }
+        .pad { padding: 0.45rem 0.7rem 0; }
+        .h { font-size: 0.82rem; font-weight: 900; color: var(--hn); margin: 0.15rem 0 0.3rem; }
+        .recent { display: flex; align-items: center; gap: 0.5rem; padding: 0.32rem 0; border-bottom: 1px solid #e8eef7; }
+        .recent b { display: block; font-size: 0.78rem; color: var(--hi); }
+        .recent small { color: var(--hm); font-size: 0.62rem; }
+        .ico { width: 1.8rem; height: 1.8rem; border-radius: 50%; background: #e6f0ff; color: var(--hb); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+        .seg { display: flex; margin: 0.45rem 0; background: #dde7f5; border-radius: 14px; padding: 3px; }
+        .seg span { flex: 1; text-align: center; padding: 0.45rem 0; border-radius: 11px; font-weight: 900; font-size: 0.78rem; color: var(--hm); }
+        .seg .on { background: #fff; color: var(--hn); }
+        .circles { display: grid; grid-template-columns: repeat(3, 1fr); }
+        .circles button, .cats button { display: flex; flex-direction: column; align-items: center; gap: 0.22rem; background: none; border: 0; font-weight: 800; font-size: 0.7rem; color: var(--hn); }
+        .circles i, .cats i { width: 3.05rem; height: 3.05rem; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; color: #fff;
+            background: radial-gradient(circle at 30% 25%, #4f9bff, var(--hb) 55%, var(--hn2)); box-shadow: 0 8px 18px rgba(30,107,214,.35); border: 2px solid rgba(255,255,255,.65); }
+        .circles .hrh-on i, .cats .hrh-on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1e6bd6, 0 8px 18px rgba(30,107,214,.35); }
+        .hrh-off { opacity: .45; }
+        .hrh-off i { background: #94a3b8 !important; box-shadow: none !important; }
+        .cats { display: flex; gap: 0.2rem; margin: 0.35rem 0 0.45rem; }
+        .cats button { flex: 1; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+        .tile { display: flex; align-items: center; gap: 0.5rem; background: #fff; border: 1px solid #dbe4f0; border-radius: 16px; padding: 0.55rem; box-shadow: 0 6px 16px rgba(30,107,214,.1); text-align: left; }
+        .tile.off { opacity: .55; }
+        .tile .mark { width: 2.3rem; height: 2.3rem; border-radius: 12px; color: #fff; display: flex; align-items: center; justify-content: center;
+            background: radial-gradient(circle at 30% 25%, #4f9bff, var(--hb) 55%, var(--hn2)); }
+        .tile.off .mark { background: #94a3b8; }
+        .tile b { display: block; font-size: 0.82rem; color: var(--hi); }
+        .tile small { color: var(--hm); font-size: 0.64rem; }
+        .driver { margin-top: 0.45rem; display: flex; align-items: center; gap: 0.55rem; color: #fff; border-radius: 16px; padding: 0.55rem 0.7rem;
+            background: radial-gradient(120% 140% at 90% 0%, #2a5fb8, var(--hn2) 45%, var(--hn)); }
+        .driver small { display: block; color: #bcd4ff; font-size: 0.62rem; }
+        .nav { display: grid; grid-template-columns: repeat(5, 1fr); margin-top: 0.45rem; padding-top: 0.35rem; border-top: 1px solid #e8eef7; text-align: center; color: #8a97ad; font-size: 0.6rem; font-weight: 800; }
+        .nav .fab i { width: 2.7rem; height: 2.7rem; margin-top: -0.8rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: radial-gradient(circle at 30% 25%, #4f9bff, var(--hb) 55%, var(--hn2)); border: 3px solid #fff; }
+        .nav .here { color: var(--hn); }
+        .offer { margin: 16px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px; }
+        .offer .go { width: 100%; margin-top: 12px; min-height: 48px; border: 0; border-radius: 14px; background: #2563eb; color: #fff; font-weight: 900; }
+        .admin { margin: 10px; background: #0f172a; color: #e2e8f0; border-radius: 16px; padding: 12px; }
+        .admin h3 { color: #7dd3fc; font-size: 13px; margin: 0 0 4px; }
+        .card { background: rgba(2,6,23,.4); border: 1px solid rgba(51,65,85,.6); border-radius: 12px; padding: 8px; margin-top: 8px; }
+        .card p { margin: 0 0 6px; font-size: 12px; font-weight: 900; color: #fff; }
+        .row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px; color: #94a3b8; font-weight: 700; }
         .row input { flex: 1; background: #1e293b; color: #fff; border: 1px solid #334155; border-radius: 8px; min-height: 32px; text-align: center; font-weight: 900; }
-        .ex { color: #7dd3fc; font-size: 10px; font-weight: 700; margin: 4px 0 0; }
+        .ex { color: #7dd3fc; font-size: 11px; font-weight: 700; margin: 2px 0 0; }
     </style>
 </head>
 <body>
@@ -38,34 +65,55 @@
 <script>
 const screen = new URLSearchParams(location.search).get('screen') || 'grey';
 const cats = [
-    ['moto', 'Moto', 'fa-motorcycle'],
-    ['economico', 'Raite Económico', 'fa-car'],
-    ['confort', 'Raite Confort', 'fa-car-side'],
-    ['familiar', 'Raite Familiar', 'fa-users'],
-    ['vip', 'Raite VIP', 'fa-crown']
+    ['economico', 'Económico', 'fa-car'],
+    ['confort', 'Confort', 'fa-snowflake'],
+    ['familiar', 'Familiar', 'fa-users'],
+    ['vip', 'VIP', 'fa-crown']
 ];
-function chips(flags, selected) {
-    return `<h2>¿Qué raite querés?</h2><div class="picker">` + cats.map(([id, label, icon]) => {
-        const off = flags[id] === false;
-        const on = selected === id;
-        return `<button type="button" class="trip-service-chip${on ? ' active' : ''}${off ? ' is-unavailable' : ''}"><i class="fas ${icon}"></i><span>${label}</span></button>`;
-    }).join('') + `</div><div class="dock"><button type="button">Pedir viaje</button></div>`;
+function home(flags, selected) {
+    const cat = cats.map(([id, label, icon]) => {
+        const off = flags[id] === false ? ' hrh-off' : '';
+        const on = selected === id ? ' hrh-on' : '';
+        return `<button type="button" class="${on}${off}"><i class="fas ${icon}"></i><span>${label}</span></button>`;
+    }).join('');
+    const sub = { economico: 'Raite Económico', confort: 'Raite Confort', familiar: 'Raite Familiar', vip: 'Raite VIP' }[selected];
+    return `<div class="hrh">
+        <div class="hero"><p class="kicker">HonduRaite · Viaja seguro, llega lejos</p><h2 class="title">¿Para dónde vamos?</h2>
+        <div class="search"><span class="dot"></span><span>Pedí tu raite</span><i class="fas fa-arrow-right"></i></div></div>
+        <div class="flag"></div>
+        <div class="pad">
+            <p class="h">Recientes</p>
+            <div class="recent"><span class="ico"><i class="fas fa-history"></i></span><span><b>Palo de Hule</b><small>4Q3V+295, Tegucigalpa</small></span></div>
+            <div class="recent"><span class="ico"><i class="fas fa-history"></i></span><span><b>Cultura Nacional Bilingual School</b><small>2QXR+X3P, Tegucigalpa</small></span></div>
+            <div class="seg"><span class="on"><i class="fas fa-car-side"></i> Raites</span><span><i class="fas fa-shopping-bag"></i> Envíos y tiendas</span></div>
+            <p class="h">¿Cómo querés ir?</p>
+            <div class="circles">
+                <button type="button"><i class="fas fa-motorcycle"></i><span>Moto</span></button>
+                <button type="button" class="hrh-on"><i class="fas fa-car"></i><span>Taxi VIP</span></button>
+                <button type="button" class="hrh-off"><i class="fas fa-taxi"></i><span>Taxi</span></button>
+            </div>
+            <div class="cats">${cat}</div>
+            <div class="grid">
+                <div class="tile"><span class="mark"><i class="fas fa-car-side"></i></span><span><b>Viaje</b><small>${sub}</small></span></div>
+                <div class="tile off"><span class="mark"><i class="fas fa-truck-pickup"></i></span><span><b>Grúa</b><small>No disponible</small></span></div>
+            </div>
+            <div class="driver"><i class="fas fa-id-card"></i><span><b>Quiero ser conductor</b><small>Registrá tu auto, moto, taxi, paila o grúa</small></span></div>
+            <div class="nav"><div class="here"><i class="fas fa-home"></i><div>Inicio</div></div><div><i class="fas fa-th-large"></i><div>Servicios</div></div><div class="fab"><i class="fas fa-car-side"></i><div>Raite</div></div><div><i class="fas fa-receipt"></i><div>Actividad</div></div><div><i class="fas fa-user"></i><div>Cuenta</div></div></div>
+        </div>
+    </div>`;
 }
 const root = document.getElementById('root');
-if (screen === 'grey') {
-    root.innerHTML = chips({ moto: true, economico: true, confort: false, familiar: true, vip: false }, 'economico');
-} else if (screen === 'all') {
-    root.innerHTML = chips({ moto: true, economico: true, confort: true, familiar: true, vip: true }, 'economico');
-} else if (screen === 'familiar') {
-    root.innerHTML = chips({ moto: true, economico: true, confort: true, familiar: true, vip: true }, 'familiar');
-} else if (screen === 'driver') {
-    root.innerHTML = `<div class="offer"><p style="margin:0 0 6px;font-size:12px;font-weight:900;color:#64748b">NUEVO VIAJE</p><p style="margin:0 0 8px;font-size:18px;font-weight:900">L. 147.00</p><p style="margin:0 0 6px"><b><i class="fas fa-tag"></i> Raite Familiar</b></p><p style="margin:0;font-size:13px;font-weight:700">Comayagua centro → Palmerola</p><p style="margin:8px 0 0;font-size:12px;color:#b45309;font-weight:900"><i class="fas fa-users"></i> 4 PERSONAS van en este viaje</p><div class="dock"><button>Aceptar</button></div></div>`;
+if (screen === 'grey') root.innerHTML = home({ economico: true, confort: false, familiar: true, vip: false }, 'economico');
+else if (screen === 'all') root.innerHTML = home({ economico: true, confort: true, familiar: true, vip: true }, 'economico');
+else if (screen === 'familiar') root.innerHTML = home({ economico: true, confort: true, familiar: true, vip: true }, 'familiar');
+else if (screen === 'driver') {
+    root.innerHTML = `<div class="offer"><p style="margin:0 0 6px;font-size:12px;font-weight:900;color:#64748b">NUEVO VIAJE</p><p style="margin:0;font-size:22px;font-weight:900">L. 147.00</p><p style="margin:8px 0;color:#1d4ed8;font-weight:900"><i class="fas fa-tag"></i> Raite Familiar</p><p style="margin:0;font-weight:700">Comayagua centro → Palmerola</p><p style="margin:8px 0 0;color:#b45309;font-weight:900"><i class="fas fa-users"></i> 4 PERSONAS van en este viaje</p><button class="go">Aceptar</button></div>`;
 } else if (screen === 'admin') {
     const rows = [
         ['Taxi VIP', 37, 22], ['Taxi tradicional', 30, 20], ['Moto', 20, 18], ['Envío', 15, 17],
-        ['Raite Económico', 37, 22], ['Raite Confort', 40, 24], ['Raite Familiar', 45, 26], ['Raite VIP', 55, 30]
+        ['Raite Económico', 37, 22], ['Raite Confort', 37, 22], ['Raite Familiar', 37, 22], ['Raite VIP', 37, 22]
     ];
-    root.innerHTML = `<div class="admin"><h3>Precio base y por kilómetro</h3><p style="font-size:10px;color:#94a3b8;font-weight:700">Fórmula: base + (km × precio/km)</p><div class="grid">${rows.map(([n,b,k]) => `<div class="card"><p>${n}</p><div class="row"><span>Base L.</span><input value="${b}"></div><div class="row"><span>Por km L.</span><input value="${k}"></div><p class="ex">Ejemplo 5 km: L. ${b + 5 * k}</p></div>`).join('')}</div></div>`;
+    root.innerHTML = `<div class="admin"><h3>Precio base y por kilómetro</h3><p style="margin:0;font-size:11px;color:#94a3b8;font-weight:700">Fórmula: base + (km × precio/km)</p>${rows.map(([n,b,k]) => `<div class="card"><p>${n}</p><div class="row"><span>Base L.</span><input value="${b}" readonly></div><div class="row"><span>Por km L.</span><input value="${k}" readonly></div><p class="ex">Ejemplo 5 km: L. ${b + 5 * k}</p></div>`).join('')}</div>`;
 }
 </script>
 </body>
