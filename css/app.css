@@ -5295,21 +5295,27 @@
         .svc-no-badge {
             display: none;
             position: absolute;
-            top: -0.55rem;
+            top: -0.85rem;
             left: 50%;
             right: auto;
             transform: translateX(-50%);
-            max-width: calc(100% - 4px);
+            max-width: 100%;
             box-sizing: border-box;
             background: #e2e8f0;
-            color: #64748b;
-            font-size: 0.48rem;
+            color: #475569;
+            font-size: 0.46rem;
             font-weight: 900;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.03em;
             text-transform: uppercase;
             border-radius: 999px;
-            padding: 0.12rem 0.32rem;
+            padding: 0.1rem 0.28rem;
             line-height: 1;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        body.passenger-mode-trip #service-type-picker.trip-service-picker,
+        body[data-passenger-mode="trip"] #service-type-picker.trip-service-picker {
+            padding-top: 0.85rem;
         }
         body.passenger-mode-trip #svc-btn-taxi.hr-svc-unavailable .svc-no-badge,
         body.passenger-mode-trip #svc-btn-taxi.is-city-off .svc-no-badge,
@@ -5387,6 +5393,74 @@
         .ride-vehicle-price { text-align: right; flex: 0 0 auto; }
         .ride-vehicle-price b { display: block; font-size: 0.95rem; font-weight: 900; }
         .ride-vehicle-price small { display: block; font-size: 0.62rem; color: #94a3b8; font-weight: 700; }
+
+        /* Panel «Elige el tipo» a pantalla completa: el mapa no se ve detrás. */
+        body.passenger-mode-trip.ride-type-sheet-open {
+            overflow: hidden;
+        }
+        body.passenger-mode-trip.ride-type-sheet-open #app-header,
+        body.passenger-mode-trip.ride-type-sheet-open #booking-back-bar,
+        body.passenger-mode-trip.ride-type-sheet-open #add-service-btn,
+        body.passenger-mode-trip.ride-type-sheet-open .nav-fab {
+            display: none !important;
+        }
+        body.passenger-mode-trip.ride-type-sheet-open #booking-float-layer {
+            position: fixed;
+            inset: 0;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 5000;
+            max-height: none;
+            margin: 0;
+            background: #f4f7fb;
+            pointer-events: auto;
+            padding: max(12px, env(safe-area-inset-top, 0px)) 12px 0;
+            box-sizing: border-box;
+        }
+        body.passenger-mode-trip.ride-type-sheet-open .booking-float-stack,
+        body.passenger-mode-trip.ride-type-sheet-open .passenger-booking-progress,
+        body.passenger-mode-trip.ride-type-sheet-open #passenger-booking-service,
+        body.passenger-mode-trip.ride-type-sheet-open #trip-service-choice-wrap,
+        body.passenger-mode-trip.ride-type-sheet-open #trip-service-adder {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: none;
+            overflow: hidden;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            margin: 0;
+            padding: 0;
+        }
+        body.passenger-mode-trip.ride-type-sheet-open #ride-options,
+        body.passenger-mode-trip.ride-type-sheet-open #ride-options-list {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        body.passenger-mode-trip.ride-type-sheet-open #booking-primary-dock {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            z-index: 5010;
+            bottom: calc(8px + max(12px, env(safe-area-inset-bottom, 0px)));
+        }
+        body.android-3btn.passenger-mode-trip.ride-type-sheet-open #booking-primary-dock {
+            bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        body.android-gesture.passenger-mode-trip.ride-type-sheet-open #booking-primary-dock,
+        body.capacitor-ios.passenger-mode-trip.ride-type-sheet-open #booking-primary-dock {
+            bottom: calc(8px + max(20px, env(safe-area-inset-bottom, 0px)));
+        }
 
         .trip-client-flow {
             display: flex;

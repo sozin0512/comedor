@@ -285,6 +285,13 @@ export function normalizeFixedFaresConfig(raw) {
             perKm,
         };
     });
+    // Filas de categoría que el admin nunca guardó: misma tarifa que Taxi VIP ya resuelta,
+    // no el 37/22 de fábrica (ese queda más caro si Taxi VIP se bajó en Firestore).
+    const taxiVipRate = serviceRates.auto || { base: 0, perKm: 0 };
+    ['economico', 'confort', 'familiar', 'vip'].forEach((id) => {
+        if (srcRates[id] && typeof srcRates[id] === 'object') return;
+        serviceRates[id] = { base: taxiVipRate.base, perKm: taxiVipRate.perKm };
+    });
 
     // Flete (paila / camión) y grúa: completar con los valores de fábrica lo que no esté guardado.
     const defSpecial = getDefaultSpecialRates();
