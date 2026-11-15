@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.126";
+} from "./auth-credentials.js?v=2026.10.26.127";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.126";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.126";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.127";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.127";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.126";
+} from "./market.js?v=2026.10.26.127";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.126";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.126";
+} from "./phone-utils.js?v=2026.10.26.127";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.127";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.126";
+} from "./referrals.js?v=2026.10.26.127";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.126";
+} from "./zones.js?v=2026.10.26.127";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.126";
+} from "./trip-notifications.js?v=2026.10.26.127";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.126";
+} from "./notification-tones.js?v=2026.10.26.127";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.126";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.127";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.126";
+} from "./passenger-alerts.js?v=2026.10.26.127";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.126";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.126";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.126";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.126";
+} from "./passenger-verification.js?v=2026.10.26.127";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.127";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.127";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.127";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.126";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.127";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.126";
+} from "./feedback.js?v=2026.10.26.127";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.126";
+} from "./greetings.js?v=2026.10.26.127";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,7 +148,7 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.26.126";
+} from "./service-types.js?v=2026.10.26.127";
 import {
     bookingPrimaryAction,
     serviceStepCopy,
@@ -158,8 +158,8 @@ import {
     shouldQuoteRouteNow,
     scrollDeltaToReveal,
 } from "./booking-primary-action.mjs?v=2026.10.26.104";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.126";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.126";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.127";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.127";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -184,23 +184,23 @@ import {
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml,
     usesTimedExclusiveOffer
-} from "./store-delivery-rotation.js?v=2026.10.26.126";
+} from "./store-delivery-rotation.js?v=2026.10.26.127";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.126";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.127";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.126";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.126";
+} from "./service-availability.js?v=2026.10.26.127";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.127";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.126";
+} from "./trip-wait.js?v=2026.10.26.127";
 import {
     scheduledForMs as schedUiMs,
     formatClock as schedFormatClock,
@@ -222,12 +222,12 @@ import {
     companionVisibility as schedCompanionVisibility,
     isLocking as schedIsLocking,
     ANDROID_NAV as SCHED_ANDROID_NAV
-} from "./scheduled-trip-driver-ui.js?v=2026.10.26.126";
+} from "./scheduled-trip-driver-ui.js?v=2026.10.26.127";
 import {
     isWaitingScheduledTrip,
     pickWaitingScheduledTrip,
     WAITING_LOCK_TOAST
-} from "./scheduled-trip-client-lock.js?v=2026.10.26.126";
+} from "./scheduled-trip-client-lock.js?v=2026.10.26.127";
 import "./passenger-waiting-lock.js?v=2026.10.26.104";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
@@ -245,49 +245,55 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
-} from "./driver-vehicles-v2.js?v=2026.10.26.126";
+} from "./driver-vehicles-v2.js?v=2026.10.26.127";
+import { comfortReviewHtml, normalizeCutoffs } from "./vehicle-categories.js?v=2026.10.26.127";
+import {
+    openDriverVehicleWizard, closeDriverVehicleWizard, maybeShowVehicleUpdateNotice,
+    renderRideCutoffAdmin, readRideCutoffForm, ensureCss as ensureVehicleWizardCss,
+    buildApprovedComfortPatch
+} from "./driver-vehicle-wizard.js?v=2026.10.26.127";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.126";
+} from "./route-fixed-fares.js?v=2026.10.26.127";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.126";
+} from "./commission-free-day.js?v=2026.10.26.127";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.126";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.126";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.126";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.126";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.126";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.126";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.126";
+} from "./route-conditions.js?v=2026.10.26.127";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.127";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.127";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.127";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.127";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.127";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.127";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.126";
+} from "./demand-heatmap.js?v=2026.10.26.127";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.126";
+} from "./ops-fleet-map.js?v=2026.10.26.127";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.126";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.126";
+} from "./live-trip-keepalive.js?v=2026.10.26.127";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.127";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.126";
+} from "./driver-session.js?v=2026.10.26.127";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -296,7 +302,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.126";
+} from "./session-keepalive.js?v=2026.10.26.127";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -386,32 +392,32 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.126";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.127";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.126";
+} from "./auth-ui.js?v=2026.10.26.127";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.126";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.126";
+} from "./age-verification.js?v=2026.10.26.127";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.127";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.126";
-import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.126";
-import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.126";
+} from "./trip-experience.js?v=2026.10.26.127";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.127";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.127";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.126";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.126";
+} from "./support-tickets.js?v=2026.10.26.127";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.127";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.126";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.126";
-import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.126";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.127";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.127";
+import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.127";
 
 // ==================== CONFIRMACIÓN IN-APP (reemplaza window.confirm nativo) ====================
 // En el APK (Android WebView) el confirm() nativo bloquea el hilo JS y a veces se queda pegado.
@@ -3191,9 +3197,129 @@ window.hideAuthSetupScreen = () => {
     setupScreen.style.display = 'none';
 };
 
+function fillLegacyDriverForm(collected) {
+    const set = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && val != null) el.value = val;
+    };
+    window.selectDriverVehicleType?.(collected.type || 'auto');
+    set('car-model', collected.modelText || '');
+    set('car-plate', collected.plate || '');
+    set('vehicle-cargo-capacity', collected.cargo || '');
+    const prevProfile = window.userProfile || {};
+    const prevVehicle = prevProfile.vehicle || {};
+    const prevDocs = prevProfile.documentsPhotos || {};
+    const keepField = (id, incoming, ...previous) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const typed = String(incoming || '').trim();
+        if (typed) { el.value = typed; return; }
+        for (const prev of previous) {
+            const saved = String(prev ?? '').trim();
+            if (saved && saved !== 'Sin especificar') { el.value = saved; return; }
+        }
+    };
+    keepField('driver-license', collected.licenseNumber, prevVehicle.license, prevProfile.license);
+    keepField('vehicle-inspection', collected.inspection, prevVehicle.inspection, prevProfile.inspection);
+    keepField('pen-code', collected.penCode, prevDocs.penCode);
+    keepField('policiales-code', collected.policialesCode, prevDocs.policialesCode);
+    set('full-name', collected.name || '');
+    set('phone-number', collected.phone || '');
+    set('emergency-contact-setup', collected.emergency || '');
+    set('driver-id-number', collected.dni || '');
+    set('driver-gender', collected.gender || '');
+    set('driver-birthdate', collected.birthDate || '');
+    set('referral-code-input', collected.referral || '');
+    Object.entries(collected.photos || {}).forEach(([slot, url]) => {
+        if (url && String(url).startsWith('data:')) window.__hrApplySetupPhoto?.(slot, url);
+    });
+}
+
+async function loadRideCutoffs() {
+    if (window.__hrRideCutoffs) return window.__hrRideCutoffs;
+    try {
+        const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'rideCategories'));
+        window.__hrRideCutoffs = normalizeCutoffs(snap.exists() ? snap.data() : null);
+    } catch (_) {
+        window.__hrRideCutoffs = normalizeCutoffs(null);
+    }
+    return window.__hrRideCutoffs;
+}
+
+window.submitDriverVehicleWizard = async (collected, ctx = {}) => {
+    if (ctx.mode === 'update') {
+        const before = window.userProfile?.approvalStatus;
+        const result = buildApprovedComfortPatch(window.userProfile, {
+            ...collected,
+            yearConfirmed: true,
+            cutoffs: ctx.cutoffs || window.__hrRideCutoffs
+        });
+        if (!result.ok) throw new Error(result.message);
+        if (Object.prototype.hasOwnProperty.call(result.patch, 'approvalStatus')) {
+            throw new Error('La actualización no puede cambiar la aprobación.');
+        }
+        const uid = window.currentUser?.uid;
+        if (!uid) throw new Error('Tenés que tener la sesión abierta.');
+        await window.ownerProfilePatch(uid, result.patch);
+        window.userProfile = {
+            ...(window.userProfile || {}),
+            ...result.patch,
+            approvalStatus: before || 'approved'
+        };
+        window.showToast?.('Listo. Tu vehículo quedó actualizado y seguís aprobado.', 'success');
+        closeDriverVehicleWizard();
+        return;
+    }
+    fillLegacyDriverForm(collected);
+    window.__hrPendingVehicleComfort = {
+        yearConfirmed: true,
+        year: collected.year,
+        hasAC: collected.hasAC,
+        seats: collected.seats,
+        suggestedCategory: collected.suggestedCategory
+    };
+    window.__hrLastProfileSave = '';
+    await window.saveProfile?.();
+    if (window.__hrLastProfileSave !== 'ok') {
+        throw new Error('No se envió el registro. Revisá los datos y las fotos.');
+    }
+    closeDriverVehicleWizard();
+};
+
+window.openDriverVehicleWizard = async (options = {}) => {
+    const cutoffs = options.cutoffs || await loadRideCutoffs();
+    const mode = options.mode === 'update' ? 'update' : 'register';
+    return openDriverVehicleWizard({
+        mode,
+        profile: options.profile || window.userProfile || {},
+        cutoffs,
+        onSubmit: (collected, ctx) => window.submitDriverVehicleWizard(collected, ctx),
+        onClose: () => {
+            if (mode === 'register' && window.driverVehicleSetupMode !== 'add') {
+                window.cancelSetupAndLogout?.();
+            }
+        }
+    });
+};
+
+window.maybeShowVehicleUpdateNotice = async (profile) => {
+    const cutoffs = await loadRideCutoffs().catch(() => null);
+    return maybeShowVehicleUpdateNotice(profile || window.userProfile, {
+        cutoffs,
+        onSubmit: (collected, ctx) => window.submitDriverVehicleWizard(collected, ctx)
+    });
+};
+
 window.showDriverSetupScreen = () => {
     const setupScreen = document.getElementById('setup-screen');
     if (!setupScreen) return;
+    if (window.driverVehicleSetupMode !== 'add') {
+        setupScreen.classList.add('hidden');
+        setupScreen.classList.remove('auth-screen-open');
+        setupScreen.style.display = 'none';
+        window.openDriverVehicleWizard?.({ mode: 'register', profile: window.userProfile || {} });
+        return;
+    }
     if (!setupScreen.querySelector('#setup-form-scroll')) {
         setupScreen.innerHTML = driverSetupTemplate || setupScreen.innerHTML;
     }
@@ -14938,6 +15064,35 @@ if (document.readyState === 'loading') {
                 return;
             }
 
+            if (role === 'ride-categories') {
+                ensureVehicleWizardCss();
+                const cutoffs = await loadRideCutoffs().catch(() => normalizeCutoffs(null));
+                window.__hrRideCutoffs = null;
+                const fresh = await loadRideCutoffs().catch(() => cutoffs);
+                container.innerHTML = `<div class="p-4">${renderRideCutoffAdmin(fresh)}</div>`;
+                container.querySelector('#rc-save')?.addEventListener('click', async () => {
+                    const msg = container.querySelector('#rc-msg');
+                    const btn = container.querySelector('#rc-save');
+                    if (btn) btn.disabled = true;
+                    try {
+                        const next = readRideCutoffForm(container);
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'rideCategories'), {
+                            ...next,
+                            updatedAt: Date.now(),
+                            updatedBy: currentUser?.uid || null
+                        }, { merge: true });
+                        window.__hrRideCutoffs = next;
+                        if (msg) msg.textContent = 'Guardado. Los conductores ven estos cortes al calcular la categoría.';
+                    } catch (e) {
+                        if (msg) msg.textContent = 'No se pudo guardar. Solo el personal puede cambiar estos cortes.';
+                        console.warn('ride cutoffs', e);
+                    } finally {
+                        if (btn) btn.disabled = false;
+                    }
+                });
+                return;
+            }
+
             // === PESTAÑA: PERSONALIZACIÓN (logo, push, tonos de notificación) ===
             if (role === 'customization') {
                 const U = window.OpsUi;
@@ -15765,6 +15920,7 @@ if (document.readyState === 'loading') {
                         ${u.referralCode ? `<p class="text-emerald-300 text-xs font-black mt-1"><i class="fas fa-gift"></i> CÓDIGO REFERIDO: <span class="font-mono tracking-widest">${u.referralCode}</span></p>` : ''}
                         ${getDriverVehicleBadgeHtml(u.vehicleType || 'auto')}
                         ${u.vehicle ? `<p class="text-blue-400 text-xs font-bold mt-1">${getDriverVehicleEmoji(u.vehicleType || 'auto')} ${u.vehicle.model} — Placa: ${u.vehicle.plate}${u.vehicle.cargoCapacity ? ` · ${u.vehicle.cargoCapacity}` : ''}</p>` : ''}
+                        ${role === 'driver' ? comfortReviewHtml(u) : ''}
                         ${u.payoutBank ? `
                             <div class="mt-1 flex items-center gap-1">
                                 <p class="text-emerald-300 text-xs font-bold">🏦 ${u.payoutBank} · ${u.payoutAccount || 'sin n°'} (${u.payoutHolder || u.name || ''})</p>
@@ -23944,6 +24100,7 @@ if (document.readyState === 'loading') {
                             ${contactEmail ? `<a href="${getGmailComposeLink(contactEmail)}" target="_blank" rel="noopener" title="Escribir por Gmail" class="text-blue-700 font-bold break-all">${contactEmail}</a>` : '<span class="text-gray-500">Sin correo</span>'}
                         </p>
                     </div>
+                    ${comfortReviewHtml(userData)}
                 `;
 
                 // === FOTOS DE REGISTRO (para conductores) - con vista y descarga individual ===
@@ -26426,6 +26583,10 @@ if (document.readyState === 'loading') {
                         ['Tipo', u.vehicleType],
                         ['Marca/Modelo', vehicle.model],
                         ['Placa', vehicle.plate],
+                        ['Año', u.vehicleYear || vehicle.year],
+                        ['Aire acondicionado', (u.hasAC === true || vehicle.hasAC === true) ? 'Sí' : ((u.hasAC === false || vehicle.hasAC === false) ? 'No' : '')],
+                        ['Asientos', u.seats || vehicle.seats],
+                        ['Categoría sugerida', u.suggestedCategory || vehicle.suggestedCategory],
                         ['Licencia', u.license],
                         ['Revisión Vehicular', u.inspection],
                     ];
@@ -29408,8 +29569,12 @@ window.saveProfileChanges = async () => {
                 const cls = meta.imgClass || 'w-full h-full object-cover';
                 el.innerHTML = `<img src="${dataUrl}" alt="" class="${cls}">`;
             }
+            try {
+                document.dispatchEvent(new CustomEvent('hr-setup-photo', { detail: { slot, dataUrl } }));
+            } catch (_) {}
             window.showToast?.('Foto lista', 'success');
         }
+        window.__hrApplySetupPhoto = applySetupPhoto;
 
         window.resetDriverSetupPhotos = () => {
             profilePhotoBase64 = helmetPhotoBase64 = null;
@@ -29662,13 +29827,28 @@ window.saveProfileChanges = async () => {
 
         async function uploadVehicleAssetsFromForm(uid, vehicleId, vehicleType) {
             const basePath = `artifacts/${appId}/users/${uid}/vehicles/${vehicleId}`;
+            const prevVehicle = window.userProfile?.vehicle || {};
+            const prevDocs = window.userProfile?.documentsPhotos || {};
+            const kept = (typed, ...previous) => {
+                const next = String(typed || '').trim();
+                if (next) return next;
+                for (const prev of previous) {
+                    const saved = String(prev ?? '').trim();
+                    if (saved) return saved;
+                }
+                return '';
+            };
+            const license = kept(document.getElementById('driver-license')?.value, prevVehicle.license, window.userProfile?.license);
+            const inspection = kept(document.getElementById('vehicle-inspection')?.value, prevVehicle.inspection, window.userProfile?.inspection) || 'Sin especificar';
+            const penCode = kept(document.getElementById('pen-code')?.value, prevDocs.penCode);
+            const policialesCode = kept(document.getElementById('policiales-code')?.value, prevDocs.policialesCode);
             const assets = {
                 vehicle: {
                     model: document.getElementById('car-model').value.trim(),
                     plate: document.getElementById('car-plate').value.trim(),
-                    license: document.getElementById('driver-license').value.trim(),
-                    inspection: document.getElementById('vehicle-inspection').value.trim() || 'Sin especificar',
-                    cargoCapacity: document.getElementById('vehicle-cargo-capacity')?.value.trim() || null,
+                    ...(license ? { license } : {}),
+                    inspection,
+                    cargoCapacity: document.getElementById('vehicle-cargo-capacity')?.value.trim() || prevVehicle.cargoCapacity || null,
                     type: vehicleType
                 },
                 vehiclePhotos: {
@@ -29682,8 +29862,8 @@ window.saveProfileChanges = async () => {
                     inspection: await resolvePhotoUrl(storage, inspectionPhoto, `${basePath}/docs/inspection.jpg`),
                     antecedentes: await resolvePhotoUrl(storage, antecedentesPenalesPhoto, `${basePath}/docs/antecedentes.jpg`),
                     policiales: await resolvePhotoUrl(storage, policialesPhoto, `${basePath}/docs/policiales.jpg`),
-                    penCode: document.getElementById('pen-code')?.value.trim() || '',
-                    policialesCode: document.getElementById('policiales-code')?.value.trim() || ''
+                    ...(penCode ? { penCode } : {}),
+                    ...(policialesCode ? { policialesCode } : {})
                 }
             };
             if (vehicleType === 'moto' && helmetPhotoBase64) {
@@ -29833,6 +30013,7 @@ window.saveProfileChanges = async () => {
         };
 
         window.saveProfile = async () => {
+            window.__hrLastProfileSave = 'start';
             if (userRole === 'driver' && window.driverVehicleSetupMode === 'add') {
                 return window.saveAdditionalDriverVehicle();
             }
@@ -29843,14 +30024,23 @@ window.saveProfileChanges = async () => {
             const gender = document.getElementById('driver-gender')?.value || '';
             const birthDate = document.getElementById('driver-birthdate')?.value || '';
 
-            if (!name || !phone) return window.showToast("Nombre y teléfono requeridos.");
+            if (!name || !phone) {
+                window.__hrLastProfileSave = 'invalid';
+                return window.showToast("Nombre y teléfono requeridos.");
+            }
             
             const ageCheck = validateRegistrationAge(birthDate);
-            if (!ageCheck.ok) return window.showToast(ageCheck.message);
+            if (!ageCheck.ok) {
+                window.__hrLastProfileSave = 'invalid';
+                return window.showToast(ageCheck.message);
+            }
 
             if (userRole === 'driver') {
                 const vehicleCheck = validateDriverVehicleForm(true);
-                if (!vehicleCheck.ok) return window.showToast(vehicleCheck.message);
+                if (!vehicleCheck.ok) {
+                    window.__hrLastProfileSave = 'invalid';
+                    return window.showToast(vehicleCheck.message);
+                }
             }
 
             // v.42: ciudad real por GPS al registrarse (antes quedaba la de defecto «Comayagua»)
@@ -29883,6 +30073,19 @@ window.saveProfileChanges = async () => {
                     inspection: document.getElementById('vehicle-inspection').value.trim() || 'Sin especificar',
                     type: data.vehicleType
                 };
+                const comfort = window.__hrPendingVehicleComfort;
+                if (comfort?.yearConfirmed && comfort.year) {
+                    data.vehicleYear = Number(comfort.year);
+                    data.hasAC = comfort.hasAC === true;
+                    data.seats = Number(comfort.seats);
+                    data.suggestedCategory = comfort.suggestedCategory || null;
+                    data.vehicleCategoryConfirmed = true;
+                    data.vehicleCategoryUpdatedAt = Date.now();
+                    data.vehicle.year = data.vehicleYear;
+                    data.vehicle.hasAC = data.hasAC;
+                    data.vehicle.seats = data.seats;
+                    data.vehicle.suggestedCategory = data.suggestedCategory;
+                }
                 data.identity = document.getElementById('driver-id-number').value.trim() || 'N/D';
                 data.approvalStatus = 'pending';
                 data.resubmitRequested = false;
@@ -29986,6 +30189,8 @@ window.saveProfileChanges = async () => {
                     console.warn('Post-registro conductor (referido/alerta):', postErr);
                 }
 
+                window.__hrLastProfileSave = 'ok';
+                window.__hrPendingVehicleComfort = null;
                 if (switchingFromPassenger && existingProfile.termsAccepted) {
                     window.showToast('Registro de conductor enviado. Espera la aprobación del administrador.', 'success');
                     setTimeout(() => location.reload(), 600);
@@ -30000,6 +30205,7 @@ window.saveProfileChanges = async () => {
                     window.showTermsAcceptance?.();
                 }, 500);
             } catch (e) {
+                window.__hrLastProfileSave = 'error';
                 console.error('saveProfile:', e);
                 const code = e?.code || '';
                 const msg = String(e?.message || '');
@@ -32064,6 +32270,9 @@ onAuthStateChanged(auth, async (user) => {
 
                 window.hideAuthSetupScreen?.();
                 setElementDisplay('app-interface', 'flex');
+                if (profile.role === 'driver') {
+                    setTimeout(() => window.maybeShowVehicleUpdateNotice?.(profile), 1400);
+                }
                 resetAuthSubmitButton();
                 updatePushEnableButton();
                 promptForNotificationsPersistently();
@@ -46946,6 +47155,21 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
             `;
         };
 
+        const legacyDocumentCodesHtml = (u) => {
+            const docs = u?.documentsPhotos || {};
+            const vehicle = u?.vehicle || {};
+            const bits = [];
+            const lic = String(vehicle.license || u?.license || '').trim();
+            const insp = String(vehicle.inspection || u?.inspection || '').trim();
+            if (lic) bits.push(`Licencia n° ${lic}`);
+            if (insp && insp !== 'Sin especificar' && insp !== 'N/D') bits.push(`Revisión ${insp}`);
+            if (String(docs.penCode || '').trim()) bits.push(`PEN ${String(docs.penCode).trim()}`);
+            if (String(docs.policialesCode || '').trim()) bits.push(`Policial ${String(docs.policialesCode).trim()}`);
+            if (!bits.length) return '';
+            const safe = bits.map((bit) => String(bit).replace(/&/g, '&amp;').replace(/</g, '&lt;')).join(' · ');
+            return `<p class="text-[10px] text-gray-300 mt-2">${safe}</p>`;
+        };
+
         const renderPendingVerificationCard = (u, role) => {
             const age = u.birthDate ? calculateAge(u.birthDate) : null;
             const ageBadge = age != null
@@ -47024,6 +47248,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                                 <div><span class="text-gray-500">Identidad:</span> <span class="font-bold">${u.identity || 'N/D'}</span></div>
                                 <div><span class="text-gray-500">${getDriverVehicleNoun(u.vehicleType || 'auto')}:</span> <span class="font-bold">${v.model || 'N/D'} — ${v.plate || 'N/D'}${v.cargoCapacity ? ` · ${v.cargoCapacity}` : ''}</span></div>
                             </div>
+                            ${comfortReviewHtml(u)}
                         </div>
                     </div>
                     <div class="mt-4">
@@ -47060,6 +47285,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                             ${window.createPhotoThumb(u.documentsPhotos?.antecedentes || u.antecedentesPhoto || ph.antecedentes, 'Antecedentes PEN', u.name, 'antecedentes')}
                             ${window.createPhotoThumb(u.documentsPhotos?.policiales || u.policialesPhoto || ph.policiales, 'Policiales', u.name, 'policiales')}
                         </div>
+                        ${legacyDocumentCodesHtml(u)}
                     </div>
                     <div class="flex flex-wrap gap-2 mt-4">
                         <button onclick="window.approveDriver('${u.uid}', this${pendingVehArg})" class="flex-1 min-w-[100px] bg-emerald-600 text-white font-black py-2.5 rounded-xl text-xs uppercase">${u._isAdditionalVehiclePending ? '✓ Aprobar vehículo' : '✓ Aprobar'}</button>
