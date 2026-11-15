@@ -2837,6 +2837,54 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             window.syncTripAutocompleteViewport = syncTripAutocompleteViewport;
             window.setTripAutocompleteOpen = setTripAutocompleteOpen;
 
+            // v119 · Vigilante del modo «buscando dirección». En iPhone el panel queda fijo arriba con
+            // alto fijo mientras se busca; si el modo no se cerraba (Google devuelve el foco al campo
+            // tras elegir, o el panel se minimiza por otro camino) la pantalla quedaba trabada: caja
+            // blanca arriba, panel minimizado y sin poder seguir (Envíos). Aquí se cierra solo.
+            if (!window._hrSearchStuckWatch) {
+                let idleTicks = 0;
+                const searchFieldFocused = () => {
+                    try {
+                        if (window.hrPlacesDialogIsOpen?.()) return true;
+                        const a = document.activeElement;
+                        if (!a || a === document.body) return false;
+                        if (a.closest?.('gmp-place-autocomplete, gmp-basic-place-autocomplete, .trip-origin-wrap, .trip-dest-wrap, .trip-extra-stop-wrap')) return true;
+                        const tag = (a.localName || '').toLowerCase();
+                        return tag === 'gmp-place-autocomplete' || tag === 'gmp-basic-place-autocomplete';
+                    } catch (_) { return false; }
+                };
+                const check = () => {
+                    try {
+                        const body = document.body;
+                        const panel = document.getElementById('control-panel');
+                        if (!body || !panel) return;
+                        const open = body.classList.contains('trip-autocomplete-open');
+                        if (!open) {
+                            idleTicks = 0;
+                            if (panel.style.getPropertyPriority('top') === 'important'
+                                || panel.style.getPropertyPriority('min-height') === 'important'
+                                || panel.style.getPropertyPriority('height') === 'important') {
+                                clearControlPanelSearchInline(panel);
+                            }
+                            return;
+                        }
+                        const minimized = body.classList.contains('panel-minimized')
+                            || body.classList.contains('panel-collapsed')
+                            || panel.classList.contains('panel-collapsed');
+                        idleTicks = searchFieldFocused() ? 0 : idleTicks + 1;
+                        if (minimized || idleTicks >= 3) {
+                            idleTicks = 0;
+                            window.hideTripKeyboard?.();
+                            panel.classList.remove('trip-autocomplete-open');
+                            body.classList.remove('trip-autocomplete-open');
+                            clearControlPanelSearchInline(panel);
+                        }
+                    } catch (_) {}
+                };
+                window._hrSearchStuckWatch = setInterval(check, 900);
+                window.hrSearchStuckCheck = check;
+            }
+
             const clearAutocompleteStack = (el) => {
                 const wrap = el?.closest?.('.trip-origin-wrap, .trip-dest-wrap, .trip-extra-stop-wrap') || el?.parentElement;
                 wrap?.classList.remove('is-autocomplete-active');
