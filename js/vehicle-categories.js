@@ -27,7 +27,7 @@ export const RIDE_CATEGORY_LABELS = {
     economico: 'Raite Económico',
     confort: 'Raite Confort',
     familiar: 'Raite Familiar',
-    vip: 'Raite VIP'
+    vip: 'Premium'
 };
 
 /** Claves que un conductor aprobado puede confirmar sin tocar su aprobación. */

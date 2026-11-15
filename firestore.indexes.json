@@ -99,6 +99,27 @@
       ]
     },
     {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "approvalStatus", "order": "ASCENDING" },
+        { "fieldPath": "serviceZoneId", "order": "ASCENDING" },
+        { "fieldPath": "vehicleType", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "approvalStatus", "order": "ASCENDING" },
+        { "fieldPath": "serviceZoneId", "order": "ASCENDING" },
+        { "fieldPath": "suggestedCategory", "order": "ASCENDING" },
+        { "fieldPath": "vehicleType", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "marketplace_listings",
       "queryScope": "COLLECTION",
       "fields": [

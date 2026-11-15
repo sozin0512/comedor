@@ -7,7 +7,7 @@ import {
 } from "./auth-credentials.js?v=2026.10.26.129";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
-    arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
+    arrayUnion, getDocs, getCountFromServer, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -151,7 +151,8 @@ import {
     SERVICE_RATE_IDS, SERVICE_RATE_LABELS
 } from "./service-types.js?v=2026.10.26.129";
 import {
-    rideCategoryLabel, categoryAvailability, rideCategoryPresenceFields, RIDE_CATEGORY_IDS
+    rideCategoryLabel, categoryAvailability, rideCategoryPresenceFields, RIDE_CATEGORY_IDS,
+    registeredCardFlags, rideCardIsOff, firstSelectableCard, RIDE_CARD_IDS
 } from "./ride-category-offer.js?v=2026.10.26.129";
 import {
     bookingPrimaryAction,
@@ -7453,6 +7454,49 @@ if (document.readyState === 'loading') {
                 h.appendChild(b);
             }
         };
+        const RIDE_SUPPLY_TTL_MS = 2 * 60 * 1000;
+        async function loadRideSupply(zoneId) {
+            const city = String(zoneId || '').trim();
+            if (!city || !db || !appId) return null;
+            const cached = window.__hrRideSupply;
+            if (cached && cached.zoneId === city && Date.now() - cached.at < RIDE_SUPPLY_TTL_MS) return cached.counts;
+            if (window.__hrRideSupplyFlight?.zoneId === city) return window.__hrRideSupplyFlight.promise;
+            const promise = (async () => {
+                const base = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+                const countOf = async (extras) => {
+                    const snap = await getCountFromServer(query(
+                        base,
+                        where('role', '==', 'driver'),
+                        where('approvalStatus', '==', 'approved'),
+                        where('serviceZoneId', '==', city),
+                        ...extras
+                    ));
+                    return Number(snap.data().count) || 0;
+                };
+                const carTypes = ['auto', 'vip', 'taxi_vip'];
+                const [moto, ...carParts] = await Promise.all([
+                    countOf([where('vehicleType', '==', 'moto')]),
+                    ...carTypes.map((type) => countOf([where('vehicleType', '==', type)])),
+                ]);
+                const [confort, familiar, vip] = await Promise.all([
+                    countOf([where('suggestedCategory', '==', 'confort'), where('vehicleType', 'in', carTypes)]),
+                    countOf([where('suggestedCategory', '==', 'familiar'), where('vehicleType', 'in', carTypes)]),
+                    countOf([where('suggestedCategory', '==', 'vip'), where('vehicleType', 'in', carTypes)]),
+                ]);
+                const counts = { moto, car: carParts.reduce((sum, n) => sum + n, 0), confort, familiar, vip };
+                window.__hrRideSupply = { zoneId: city, at: Date.now(), counts, known: true };
+                return counts;
+            })().catch((err) => {
+                console.warn('loadRideSupply', err?.message || err);
+                return null;
+            });
+            window.__hrRideSupplyFlight = { zoneId: city, promise };
+            try { return await promise; }
+            finally {
+                if (window.__hrRideSupplyFlight?.promise === promise) window.__hrRideSupplyFlight = null;
+            }
+        }
+
         function taxiTradicionalOff(zoneId, zoneName = '') {
             const id = String(zoneId || '').toLowerCase();
             const name = String(zoneName || '').toLowerCase();
@@ -7529,32 +7573,49 @@ if (document.readyState === 'loading') {
             const familiarCap = (cuts.familiarMinSeats >= 6 && cuts.familiarMaxSeats >= cuts.familiarMinSeats)
                 ? `Hasta ${cuts.familiarMaxSeats} personas`
                 : 'Hasta 4 personas';
-            const flags = categoryAvailability(
+            const onlineKnown = Array.isArray(window.__HR_SERVICE_ONLINE?.locs);
+            const onlineFlags = categoryAvailability(
                 window.__HR_SERVICE_ONLINE?.locs || [],
                 window.__hrRideCutoffs || null,
-                { known: Array.isArray(window.__HR_SERVICE_ONLINE?.locs) }
+                { known: onlineKnown }
             );
-            const motoOff = isMalePassengerMotoRideBlocked() || isServiceTypeDisabledInCity('moto', zoneId);
+            const supply = window.__hrRideSupply;
+            const registeredKnown = !!(supply && supply.zoneId === zoneId && Date.now() - supply.at < RIDE_SUPPLY_TTL_MS && supply.known);
+            const registeredFlags = registeredCardFlags(supply?.counts, { known: registeredKnown });
+            if (!registeredKnown) {
+                loadRideSupply(zoneId).then((counts) => {
+                    if (!counts || window.__hrRideSupply?.zoneId !== zoneId) return;
+                    window.renderRideOptions?.(window.currentRouteData || route, { syncFare: false });
+                });
+            }
+            const motoBlocked = isMalePassengerMotoRideBlocked() || isServiceTypeDisabledInCity('moto', zoneId);
+            const vipBlocked = isServiceTypeDisabledInCity('auto', zoneId);
             paintTaxiPill(taxiOff);
+            const cardOff = (id) => rideCardIsOff(id, {
+                registeredFlags,
+                registeredKnown,
+                onlineFlags,
+                onlineKnown,
+                cityBlocked: id === 'moto' ? motoBlocked : vipBlocked
+            });
 
             const options = [
-                { id: 'moto', service: 'moto', category: 'moto', name: 'Moto (pasajeros)', cap: 'Hasta 2 personas', icon: 'fa-motorcycle', tint: 'violet', off: motoOff },
-                { id: 'economico', service: 'auto', category: 'economico', name: 'Económico', cap: 'Hasta 4 personas', icon: 'fa-car', tint: 'blue', off: false },
-                { id: 'taxi_vip', service: 'auto', category: null, name: 'Taxi VIP', cap: 'Hasta 4 personas', icon: 'fa-car', tint: 'blue', off: isServiceTypeDisabledInCity('auto', zoneId) },
-                { id: 'confort', service: 'auto', category: 'confort', name: 'Confort', cap: 'Hasta 4 personas', icon: 'fa-snowflake', tint: 'sky', off: flags.confort === false },
-                { id: 'familiar', service: 'auto', category: 'familiar', name: 'Familiar', cap: familiarCap, icon: 'fa-shuttle-van', tint: 'blue', off: flags.familiar === false },
-                { id: 'vip', service: 'auto', category: 'vip', name: 'VIP', cap: 'Hasta 4 personas', icon: 'fa-crown', tint: 'blue', off: flags.vip === false },
-            ];
-            if (!window.currentRidePick) window.currentRidePick = 'taxi_vip';
+                { id: 'moto', service: 'moto', category: 'moto', name: 'Moto (pasajeros)', cap: 'Hasta 2 personas', icon: 'fa-motorcycle', tint: 'violet' },
+                { id: 'economico', service: 'auto', category: 'economico', name: 'Económico', cap: 'Hasta 4 personas', icon: 'fa-car', tint: 'blue' },
+                { id: 'taxi_vip', service: 'auto', category: null, name: 'Taxi VIP', cap: 'Hasta 4 personas', icon: 'fa-car', tint: 'blue' },
+                { id: 'confort', service: 'auto', category: 'confort', name: 'Confort', cap: 'Hasta 4 personas', icon: 'fa-snowflake', tint: 'sky' },
+                { id: 'familiar', service: 'auto', category: 'familiar', name: 'Familiar', cap: familiarCap, icon: 'fa-shuttle-van', tint: 'blue' },
+                { id: 'vip', service: 'auto', category: 'vip', name: rideCategoryLabel('vip') || 'Premium', cap: 'Hasta 4 personas', icon: 'fa-crown', tint: 'blue' },
+            ].map((opt) => ({ ...opt, off: cardOff(opt.id) }));
             if (!options.some((o) => o.id === window.currentRidePick && !o.off)) {
-                window.currentRidePick = options.find((o) => o.id === 'taxi_vip' && !o.off)?.id
-                    || options.find((o) => !o.off)?.id
-                    || 'economico';
+                window.currentRidePick = firstSelectableCard(RIDE_CARD_IDS, (id) => options.find((o) => o.id === id)?.off);
             }
-            const chosen = options.find((o) => o.id === window.currentRidePick) || options[1];
-            window.currentRideCategory = chosen.category;
-            if (normalizeServiceType(window.currentServiceType) !== chosen.service) {
-                window.currentServiceType = chosen.service;
+            const chosen = options.find((o) => o.id === window.currentRidePick && !o.off) || null;
+            if (chosen) {
+                window.currentRideCategory = chosen.category;
+                if (normalizeServiceType(window.currentServiceType) !== chosen.service) {
+                    window.currentServiceType = chosen.service;
+                }
             }
 
             list.innerHTML = '';
@@ -7574,7 +7635,7 @@ if (document.readyState === 'loading') {
                 }
                 const card = document.createElement('button');
                 card.type = 'button';
-                card.className = 'ride-vehicle-card ride-card' + (opt.id === chosen.id ? ' is-selected' : '') + (opt.off ? ' is-off' : '');
+                card.className = 'ride-vehicle-card ride-card' + (chosen && opt.id === chosen.id ? ' is-selected' : '') + (opt.off ? ' is-off' : '');
                 card.dataset.ridePick = opt.id;
                 card.setAttribute('aria-disabled', opt.off ? 'true' : 'false');
                 card.innerHTML = `
@@ -41758,8 +41819,11 @@ window.cancelSetupAndLogout = () => {
                 taxi_vip: 'Taxi VIP',
                 confort: 'Confort',
                 familiar: 'Familiar',
-                vip: 'VIP'
+                vip: 'Premium'
             };
+            if (!window.currentRidePick) {
+                return { type, available: false, name: '', meta };
+            }
             return {
                 type,
                 available,

@@ -657,7 +657,7 @@ export function renderRideCutoffAdmin(cutoffs) {
             <input id="rc-eco" type="number" value="${c.economicoMaxYear}">
             <label for="rc-conf">Raite Confort: desde el año (con aire)</label>
             <input id="rc-conf" type="number" value="${c.confortMinYear}">
-            <label for="rc-vip">Raite VIP: desde el año</label>
+            <label for="rc-vip">Premium: desde el año</label>
             <input id="rc-vip" type="number" value="${c.vipMinYear}">
             <label for="rc-fam-min">Raite Familiar: asientos desde</label>
             <input id="rc-fam-min" type="number" value="${c.familiarMinSeats}">

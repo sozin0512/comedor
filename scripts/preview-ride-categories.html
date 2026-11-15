@@ -76,7 +76,7 @@ function home(flags, selected) {
         const on = selected === id ? ' hrh-on' : '';
         return `<button type="button" class="${on}${off}"><i class="fas ${icon}"></i><span>${label}</span></button>`;
     }).join('');
-    const sub = { economico: 'Raite Económico', confort: 'Raite Confort', familiar: 'Raite Familiar', vip: 'Raite VIP' }[selected];
+    const sub = { economico: 'Raite Económico', confort: 'Raite Confort', familiar: 'Raite Familiar', vip: 'Premium' }[selected];
     return `<div class="hrh">
         <div class="hero"><p class="kicker">HonduRaite · Viaja seguro, llega lejos</p><h2 class="title">¿Para dónde vamos?</h2>
         <div class="search"><span class="dot"></span><span>Pedí tu raite</span><i class="fas fa-arrow-right"></i></div></div>
@@ -111,7 +111,7 @@ else if (screen === 'driver') {
 } else if (screen === 'admin') {
     const rows = [
         ['Taxi VIP', 37, 22], ['Taxi tradicional', 30, 20], ['Moto', 20, 18], ['Envío', 15, 17],
-        ['Raite Económico', 37, 22], ['Raite Confort', 37, 22], ['Raite Familiar', 37, 22], ['Raite VIP', 37, 22]
+        ['Raite Económico', 37, 22], ['Raite Confort', 37, 22], ['Raite Familiar', 37, 22], ['Premium', 37, 22]
     ];
     root.innerHTML = `<div class="admin"><h3>Precio base y por kilómetro</h3><p style="margin:0;font-size:11px;color:#94a3b8;font-weight:700">Fórmula: base + (km × precio/km)</p>${rows.map(([n,b,k]) => `<div class="card"><p>${n}</p><div class="row"><span>Base L.</span><input value="${b}" readonly></div><div class="row"><span>Por km L.</span><input value="${k}" readonly></div><p class="ex">Ejemplo 5 km: L. ${b + 5 * k}</p></div>`).join('')}</div>`;
 }
