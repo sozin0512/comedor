@@ -450,7 +450,7 @@ async function waitForServiceWorkerReady(reg, timeoutMs) {
 
 export async function bootWebPushServiceWorker() {
     if (isCapacitorNative()) return null;
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
+    if (!(await messagingSupportedHere())) return null;
     try {
         return await registerMessagingServiceWorker();
     } catch (e) {
@@ -480,15 +480,39 @@ async function registerMessagingServiceWorker() {
     return waitForServiceWorkerReady(reg, isIOS() ? 15000 : 4000);
 }
 
-async function messagingSupportedHere() {
-    try {
-        if (await isSupported()) return true;
-    } catch (_) {}
-    // iOS PWA: isSupported() a veces da false por cookies/ITP y el push sí existe
-    return isIosStandalonePwa()
+function browserHasPushApis() {
+    return typeof navigator !== 'undefined'
         && 'serviceWorker' in navigator
+        && typeof window !== 'undefined'
         && 'PushManager' in window
         && 'Notification' in window;
+}
+
+/** true, false, o Promise (compat y modular). */
+async function messagingSdkSupported() {
+    try {
+        const fn = typeof isSupported === 'function' ? isSupported : null;
+        if (!fn) return false;
+        const result = fn();
+        return !!(result && typeof result.then === 'function' ? await result : result);
+    } catch (_) {
+        return false;
+    }
+}
+
+async function messagingSupportedHere() {
+    if (!browserHasPushApis()) return false;
+    if (await messagingSdkSupported()) return true;
+    // iOS PWA instalada: isSupported() a veces da false y el push sí existe.
+    return isIosStandalonePwa();
+}
+
+function isUnsupportedMessagingError(err) {
+    const code = String(err?.code || '');
+    const msg = String(err?.message || err || '');
+    return code === 'messaging/unsupported-browser'
+        || /messaging\/unsupported-browser/i.test(msg)
+        || /doesn't support the API's required to use the Firebase SDK/i.test(msg);
 }
 
 async function getFcmTokenWithRetry(messagingInstance, key, reg) {
@@ -1446,7 +1470,12 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
     try {
         const app = ensureFirebaseApp(firebaseConfig);
         const reg = await registerMessagingServiceWorker();
-        messagingInstance = getMessaging(app);
+        try {
+            messagingInstance = getMessaging(app);
+        } catch (err) {
+            if (isUnsupportedMessagingError(err)) return null;
+            throw err;
+        }
         const token = await getFcmTokenWithRetry(messagingInstance, key, reg);
 
         if (token) {
@@ -1473,6 +1502,7 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
 
         return token || lastWebTokenValue || null;
     } catch (e) {
+        if (isUnsupportedMessagingError(e)) return null;
         console.warn('initFcmPush:', e);
         if (tokenUid) {
             bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid: tokenUid });

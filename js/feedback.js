@@ -22,6 +22,8 @@ const NOISE_ERROR_PATTERNS = [
     /^undefined$/i,
     /^null$/i,
     /^\[object (Event|Object)\]$/i,
+    /messaging\/unsupported-browser/i,
+    /doesn't support the API's required to use the Firebase SDK/i,
 ];
 
 function readRecentErrors() {
@@ -69,7 +71,9 @@ function isNoiseError(message, details = '', meta = {}) {
     const msg = String(message || '').trim();
     const det = String(details || '');
     const source = String(meta.source || meta.filename || '');
-    const combined = `${msg}\n${det}\n${source}`;
+    const code = String(meta.code || '');
+    const combined = `${msg}\n${det}\n${source}\n${code}`;
+    if (code === 'messaging/unsupported-browser') return true;
 
     // Fallos de carga de recursos (img/script/link) no son crashes de la app
     if (meta.isResourceError) return true;
@@ -253,7 +257,8 @@ export function initCrashReporting({ db, appId, collection, addDoc, serverTimest
 
         report('error', msg, details, {
             source: 'unhandledrejection',
-            hasStack
+            hasStack,
+            code: reason && typeof reason === 'object' ? reason.code || '' : ''
         });
     });
 
