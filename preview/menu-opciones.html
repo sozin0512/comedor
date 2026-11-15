@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Ejemplo · opciones de menú</title>
+    <link rel="stylesheet" href="../css/app.css">
+    <style>
+        html, body { margin: 0; background: #f4f7fb; font-family: system-ui, sans-serif; }
+        body { min-height: 100vh; }
+        .shot { display: none; min-height: 100vh; }
+        body[data-shot="empty"] .shot-empty,
+        body[data-shot="picked"] .shot-picked,
+        body[data-shot="cart"] .shot-cart,
+        body[data-shot="editor"] .shot-editor { display: block; }
+        .shot-cart, .shot-editor { padding: 16px 12px 24px; box-sizing: border-box; }
+        .preview-nav {
+            display: none; position: fixed; left: 0; right: 0; bottom: 0; height: 48px;
+            background: #111; color: #fff; z-index: 29000;
+            align-items: center; justify-content: space-around; font-size: 11px;
+        }
+        body.android-3btn .preview-nav { display: flex; }
+        .example-flag {
+            margin: 0 0 8px; font-size: 11px; font-weight: 800; letter-spacing: .04em;
+            text-transform: uppercase; color: #b45309;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-nav"><span>◁</span><span>○</span><span>□</span></div>
+
+    <div class="shot shot-empty">
+        <div id="menu-options-root">
+            <div class="menu-options-sheet">
+                <header class="menu-options-head">
+                    <div>
+                        <p class="menu-options-kicker">Ejemplo · no es un precio real</p>
+                        <h2>Alitas</h2>
+                        <p class="menu-options-base">Precio base L 120.00</p>
+                    </div>
+                    <button type="button" class="menu-options-close" aria-label="Cerrar">×</button>
+                </header>
+                <div class="menu-options-list">
+                    <section class="menu-options-card">
+                        <div class="menu-options-card-top"><strong>Tamaño</strong><span class="menu-options-hint">Elegí 1 · Obligatorio</span></div>
+                        <div class="menu-options-choices">
+                            <label class="menu-options-choice"><input type="radio" name="t"><span>12 alitas</span><b>Incluido</b></label>
+                            <label class="menu-options-choice"><input type="radio" name="t"><span>24 alitas</span><b>+ L 80.00</b></label>
+                        </div>
+                    </section>
+                    <section class="menu-options-card">
+                        <div class="menu-options-card-top"><strong>Sabores</strong><span class="menu-options-hint">Elegí hasta 2</span></div>
+                        <div class="menu-options-choices">
+                            <label class="menu-options-choice"><input type="checkbox"><span>BBQ</span><b>+ L 15.00</b></label>
+                            <label class="menu-options-choice"><input type="checkbox"><span>Búfalo</span><b>+ L 15.00</b></label>
+                            <label class="menu-options-choice"><input type="checkbox"><span>Limón y pimienta</span><b>Incluido</b></label>
+                        </div>
+                    </section>
+                    <section class="menu-options-card">
+                        <div class="menu-options-card-top"><strong>Acompañamiento</strong><span class="menu-options-hint">Elegí 1 · Obligatorio</span></div>
+                        <div class="menu-options-choices">
+                            <label class="menu-options-choice"><input type="radio" name="s"><span>Papas</span><b>+ L 20.00</b></label>
+                            <label class="menu-options-choice"><input type="radio" name="s"><span>Ensalada</span><b>+ L 10.00</b></label>
+                            <label class="menu-options-choice"><input type="radio" name="s"><span>Medio</span><b>Incluido</b></label>
+                        </div>
+                    </section>
+                    <label class="menu-options-note"><span>Nota para la cocina</span><textarea placeholder="Sin cebolla, bien doradas…"></textarea></label>
+                    <div class="menu-options-qty"><span>Cantidad</span><button type="button">−</button><b>1</b><button type="button">+</button></div>
+                </div>
+                <button type="button" class="menu-options-add">AGREGAR · L 120.00</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="shot shot-picked">
+        <div id="menu-options-root">
+            <div class="menu-options-sheet">
+                <header class="menu-options-head">
+                    <div>
+                        <p class="menu-options-kicker">Ejemplo · no es un precio real</p>
+                        <h2>Alitas</h2>
+                        <p class="menu-options-base">Precio base L 120.00</p>
+                    </div>
+                    <button type="button" class="menu-options-close" aria-label="Cerrar">×</button>
+                </header>
+                <div class="menu-options-list">
+                    <section class="menu-options-card">
+                        <div class="menu-options-card-top"><strong>Tamaño</strong><span class="menu-options-hint">Elegí 1 · Obligatorio</span></div>
+                        <div class="menu-options-choices">
+                            <label class="menu-options-choice"><input type="radio" name="t2" checked><span>12 alitas</span><b>Incluido</b></label>
+                            <label class="menu-options-choice"><input type="radio" name="t2"><span>24 alitas</span><b>+ L 80.00</b></label>
+                        </div>
+                    </section>
+                    <section class="menu-options-card">
+                        <div class="menu-options-card-top"><strong>Sabores</strong><span class="menu-options-hint">Elegí hasta 2</span></div>
+                        <div class="menu-options-choices">
+                            <label class="menu-options-choice"><input type="checkbox" checked><span>BBQ</span><b>+ L 15.00</b></label>
+                            <label class="menu-options-choice"><input type="checkbox" checked><span>Búfalo</span><b>+ L 15.00</b></label>
+                            <label class="menu-options-choice"><input type="checkbox" disabled><span>Limón y pimienta</span><b>Incluido</b></label>
+                        </div>
+                    </section>
+                    <section class="menu-options-card is-missing">
+                        <div class="menu-options-card-top"><strong>Acompañamiento</strong><span class="menu-options-hint">Elegí 1 · Obligatorio</span></div>
+                        <div class="menu-options-choices">
+                            <label class="menu-options-choice"><input type="radio" name="s2"><span>Papas</span><b>+ L 20.00</b></label>
+                            <label class="menu-options-choice"><input type="radio" name="s2"><span>Ensalada</span><b>+ L 10.00</b></label>
+                            <label class="menu-options-choice"><input type="radio" name="s2"><span>Medio</span><b>Incluido</b></label>
+                        </div>
+                    </section>
+                    <label class="menu-options-note"><span>Nota para la cocina</span><textarea>Bien doradas</textarea></label>
+                    <div class="menu-options-qty"><span>Cantidad</span><button type="button">−</button><b>1</b><button type="button">+</button></div>
+                </div>
+                <button type="button" class="menu-options-add is-blocked">AGREGAR · L 150.00</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="shot shot-cart">
+        <p class="example-flag">Ejemplo de carrito · precios de muestra</p>
+        <h2 style="margin:0 0 12px;font-size:1.3rem;font-weight:900;">Tu pedido</h2>
+        <div style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(15,23,42,.06);">
+            <p style="margin:0;font-weight:900;">Alitas</p>
+            <p style="margin:4px 0 0;font-size:13px;color:#475569;">12 alitas · BBQ + Búfalo · Papas</p>
+            <p style="margin:2px 0 0;font-size:12px;color:#64748b;">Nota: Bien doradas</p>
+            <p style="margin:2px 0 8px;font-size:12px;color:#64748b;">L 170.00 c/u</p>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:800;">1</span>
+                <b>L 170.00</b>
+            </div>
+        </div>
+        <p style="margin-top:16px;font-weight:900;">Total productos · L 170.00</p>
+        <p style="font-size:12px;color:#64748b;">120 de base + 15 BBQ + 15 Búfalo + 20 papas. Números de ejemplo.</p>
+    </div>
+
+    <div class="shot shot-editor">
+        <p class="example-flag">Ejemplo del editor · no se guarda en producción</p>
+        <h2 style="margin:0 0 4px;font-size:1.2rem;font-weight:900;">Alitas</h2>
+        <p style="margin:0 0 10px;color:#64748b;font-size:13px;">Precio base de ejemplo L 120</p>
+        <div class="menu-opt-editor">
+            <p class="menu-opt-editor-title">Opciones del cliente</p>
+            <p class="menu-opt-editor-help">Sabores, tamaños o acompañamientos. Si no agregás grupos, el producto se pide como siempre. Un grupo guardado se puede reusar en otro producto.</p>
+            <div class="menu-opt-editor-library">
+                <button type="button" class="stores-secondary-btn">Usar «Salsas de la casa»</button>
+            </div>
+            <div class="menu-opt-editor-group">
+                <input class="stores-input" value="Sabores">
+                <div class="menu-opt-editor-row">
+                    <label>Mín <input class="stores-input" type="number" value="0"></label>
+                    <label>Máx <input class="stores-input" type="number" value="2"></label>
+                    <label><input type="checkbox"> Obligatorio</label>
+                </div>
+                <div class="menu-opt-editor-option">
+                    <input class="stores-input" value="BBQ">
+                    <input class="stores-input" type="number" value="15">
+                    <label><input type="checkbox" checked> Disponible</label>
+                </div>
+                <div class="menu-opt-editor-option">
+                    <input class="stores-input" value="Mango habanero">
+                    <input class="stores-input" type="number" value="15">
+                    <label><input type="checkbox"> Disponible</label>
+                </div>
+                <button type="button" class="stores-secondary-btn">+ Opción</button>
+            </div>
+            <button type="button" class="stores-secondary-btn">+ Grupo de opciones</button>
+        </div>
+    </div>
+    <script>
+        const q = new URLSearchParams(location.search);
+        document.body.dataset.shot = q.get('shot') || 'empty';
+        if (q.get('nav') === 'android') document.body.classList.add('android-3btn');
+    </script>
+</body>
+</html>

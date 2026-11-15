@@ -15,6 +15,7 @@ const MAX_PER_DAY = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TRIP_SERVICES = ['auto', 'taxi', 'moto', 'flete_paila', 'flete_camion', 'grua', 'delivery'];
 const waitingLock = require('./scheduled-trip-client-lock');
+const { expectedOrderPricing, optionDetail } = require('./menu-options');
 
 /** +504 / 504 / 8 dígitos → «504XXXXXXXX» (celular hondureño: empieza en 3, 7, 8 o 9). */
 function normalizeGuestPhone(raw) {
@@ -154,7 +155,21 @@ module.exports = function guestCheckoutModule({ db, FieldValue, HttpsError, onCa
             if (!prod || prod.storeId !== store.id || prod.available === false || !(price > 0)) throw new HttpsError('failed-precondition', `«${str(it?.name, 40) || 'Producto'}» ya no está disponible.`);
             const left = orderHelpers.stockLeft(prod, store);
             if (left != null && left < qty) throw new HttpsError('failed-precondition', `Solo quedan ${left} de «${prod.name}».`);
-            cart.push({ productId: pid, name: prod.name || 'Producto', price, qty, photoUrl: prod.photoUrl || null });
+            const picks = it?.selectedOptions && typeof it.selectedOptions === 'object' ? it.selectedOptions : {};
+            const priced = expectedOrderPricing({ [pid]: prod }, [{ productId: pid, qty, selectedOptions: picks, basePrice: Number(it?.basePrice ?? it?.price) }]);
+            if (!priced.ok) throw new HttpsError('failed-precondition', priced.reason || 'Revisá las opciones del producto.');
+            const unit = Math.round((priced.total / qty) * 100) / 100;
+            const detail = optionDetail(prod, picks);
+            cart.push({
+                productId: pid,
+                name: detail ? `${prod.name || 'Producto'} · ${detail}` : (prod.name || 'Producto'),
+                price: unit,
+                qty,
+                photoUrl: prod.photoUrl || null,
+                selectedOptions: picks,
+                optionsDetail: detail,
+                optionsNote: str(it?.optionsNote, 180)
+            });
         }
         const recipientPhone = normalizeGuestPhone(p.recipientPhone) || guest.phone;
         const order = orderHelpers.buildWaCustomerOrder({
