@@ -33,6 +33,11 @@ import {
 } from './store-week.js?v=2026.10.26.59';
 
 import { formatLempiras } from './money-format.js';
+import {
+    productHasOptionGroups, normalizeOptionGroups, validateOptionPicks, lineTotalWithOptions,
+    unitPriceWithOptions, optionDetailLine, selectionKey, groupHint, groupMax, buildOptionPanelHtml,
+    buildOptionEditorHtml, readOptionEditor, blankGroupHtml, blankOptionHtml, groupEditorHtml
+} from './menu-options.js?v=2026.10.26.133';
 import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.59';
 import {
     splitClientOrders,
@@ -3569,6 +3574,11 @@ export function openProductPhotoZoomModal(opts = {}) {
             ev.stopPropagation();
             const targetPid = actEl.getAttribute('data-product-id') || product?.id || pid;
             if (targetPid) {
+                const product = viewingProducts.find((x) => x.id === targetPid);
+                if (productHasOptionGroups(product)) {
+                    close();
+                    return openMenuOptions(product);
+                }
                 addToCart(targetPid);
                 toast(`${title} agregado al carrito`, 'success');
             }
@@ -3642,12 +3652,14 @@ function renderCartHtml() {
                         : `<div class="cart-line-photo cart-line-photo--placeholder"><i class="fas fa-image"></i></div>`}
                     <div class="min-w-0 flex-1">
                         <p class="font-bold text-sm text-slate-900">${esc(i.name)}</p>
+                        ${i.optionsDetail ? `<p class="text-xs text-slate-600">${esc(i.optionsDetail)}</p>` : ''}
+                        ${i.optionsNote ? `<p class="text-xs text-slate-500">Nota: ${esc(i.optionsNote)}</p>` : ''}
                         <p class="text-xs text-slate-500">${money(unit)} c/u</p>
                     </div>
                     <div class="product-qty">
-                        <button type="button" class="product-qty-btn" data-stores-action="cart-dec" data-product-id="${esc(i.productId)}">−</button>
+                        <button type="button" class="product-qty-btn" data-stores-action="cart-dec" data-product-id="${esc(i.productId)}"${i.lineId ? ` data-line-id="${esc(i.lineId)}"` : ''}>−</button>
                         <span>${i.qty}</span>
-                        <button type="button" class="product-qty-btn" data-stores-action="cart-inc" data-product-id="${esc(i.productId)}">+</button>
+                        <button type="button" class="product-qty-btn" data-stores-action="cart-inc" data-product-id="${esc(i.productId)}"${i.lineId ? ` data-line-id="${esc(i.lineId)}"` : ''}>+</button>
                     </div>
                     <p class="cart-line-total">${money(unit * i.qty)}</p>
                 </div>`;
@@ -4021,7 +4033,7 @@ export function orderProgressStepperHtml(o, opts = {}) {
 function orderCardHtml(o, { merchant = false, history = false, focused = false, live = null } = {}) {
     const st = orderStatusView(o);
     const items = Array.isArray(o.items) ? o.items : [];
-    const itemsLine = items.map((i) => `${i.qty}× ${i.name}`).join(', ');
+    const itemsLine = items.map((i) => `${i.qty}× ${i.name}${i.optionsNote ? ` (${i.optionsNote})` : ''}`).join(', ');
     const actions = merchant ? merchantOrderActionsHtml(o) : clientOrderActionsHtml(o);
     const clientActive = !merchant && !history && isActiveClientOrder(o);
     const showStatus = merchant || history || !clientActive;
@@ -4679,6 +4691,105 @@ async function openStore(storeId) {
     refreshStoreMenuDeliveryQuote(store).catch(() => {});
 }
 
+function openMenuOptions(product) {
+    if (!product) return;
+    document.getElementById('menu-options-root')?.remove();
+    const root = document.createElement('div');
+    root.id = 'menu-options-root';
+    root.innerHTML = buildOptionPanelHtml(product, { money });
+    const picks = {};
+    let qty = 1;
+    const noteEl = () => root.querySelector('[data-menu-opt="note"]');
+    let showErrors = false;
+    const refresh = () => {
+        const groups = normalizeOptionGroups(product.optionGroups);
+        groups.forEach((group) => {
+            const max = groupMax(group, picks);
+            const selected = Array.isArray(picks[group.id]) ? picks[group.id] : [];
+            if (selected.length > max) picks[group.id] = selected.slice(0, max);
+        });
+        groups.forEach((group) => {
+            const card = root.querySelector(`[data-group-id="${group.id}"]`);
+            const hint = card?.querySelector('[data-hint-for]');
+            if (hint) hint.textContent = groupHint(group, picks);
+            const max = groupMax(group, picks);
+            const selected = Array.isArray(picks[group.id]) ? picks[group.id] : [];
+            const minNeed = group.required ? Math.max(1, group.min || 0) : (group.min || 0);
+            card?.classList.toggle('is-missing', showErrors && (selected.length < minNeed || selected.length > max));
+            card?.querySelectorAll('input[data-menu-opt="pick"]').forEach((input) => {
+                const on = selected.includes(input.value);
+                input.checked = on;
+                if (!on && selected.length >= max) input.disabled = true;
+                else input.disabled = false;
+            });
+        });
+        const check = validateOptionPicks(product, picks);
+        const total = lineTotalWithOptions(product, picks, qty);
+        const btn = root.querySelector('[data-menu-opt="add"]');
+        if (btn) btn.textContent = `AGREGAR · ${money(total)}`;
+        btn?.classList.toggle('is-blocked', showErrors && !check.ok);
+    };
+    root.addEventListener('click', (ev) => {
+        const closeBtn = ev.target.closest('[data-menu-opt="close"]');
+        if (closeBtn) { root.remove(); return; }
+        if (ev.target.closest('[data-menu-opt="qty-inc"]')) { qty = Math.min(20, qty + 1); root.querySelector('[data-menu-opt="qty"]').textContent = String(qty); refresh(); return; }
+        if (ev.target.closest('[data-menu-opt="qty-dec"]')) { qty = Math.max(1, qty - 1); root.querySelector('[data-menu-opt="qty"]').textContent = String(qty); refresh(); return; }
+        const add = ev.target.closest('[data-menu-opt="add"]');
+        if (!add) return;
+        const check = validateOptionPicks(product, picks);
+        if (!check.ok) {
+            showErrors = true;
+            refresh();
+            toast('Elegí las opciones obligatorias', 'warning');
+            return;
+        }
+        const unit = roundMoney(unitPriceWithOptions(product, picks));
+        const detail = optionDetailLine(product, picks);
+        const note = String(noteEl()?.value || '').trim().slice(0, 180);
+        const lineId = `${product.id}|${selectionKey(product, picks)}|${note}`;
+        const existing = cart.find((c) => c.lineId === lineId);
+        const nextQty = (existing?.qty || 0) + qty;
+        if (existing) existing.qty = nextQty;
+        else {
+            cart.push({
+                lineId,
+                productId: product.id,
+                storeId: viewingStore?.id,
+                name: product.name,
+                optionsDetail: detail,
+                optionsNote: note,
+                selectedOptions: JSON.parse(JSON.stringify(picks)),
+                basePrice: unit,
+                price: unit,
+                displayPrice: unit,
+                photoUrl: product.photoUrl || null,
+                qty,
+            });
+        }
+        root.remove();
+        toast(`${product.name} agregado`, 'success');
+        renderMarketplace();
+    });
+    root.addEventListener('change', (ev) => {
+        const input = ev.target.closest('[data-menu-opt="pick"]');
+        if (!input) return;
+        const groupId = input.getAttribute('data-group-id');
+        const groups = normalizeOptionGroups(product.optionGroups);
+        const group = groups.find((g) => g.id === groupId);
+        if (!group) return;
+        const max = groupMax(group, picks);
+        let selected = Array.isArray(picks[groupId]) ? picks[groupId].slice() : [];
+        if (input.type === 'radio' || max === 1) selected = input.checked ? [input.value] : [];
+        else if (input.checked) {
+            if (!selected.includes(input.value) && selected.length < max) selected.push(input.value);
+        } else selected = selected.filter((id) => id !== input.value);
+        picks[groupId] = selected;
+        refresh();
+    });
+    document.body.appendChild(root);
+    refresh();
+}
+
 function addToCart(productId) {
     const p = viewingProducts.find((x) => x.id === productId);
     if (!productCanSell(p, viewingStore)) {
@@ -4716,8 +4827,16 @@ function addToCart(productId) {
     renderMarketplace();
 }
 
-function incCart(productId) {
-    const line = cart.find((c) => c.productId === productId);
+function cartLine(productId, lineId) {
+    if (lineId) {
+        const hit = cart.find((c) => c.lineId === lineId);
+        if (hit) return hit;
+    }
+    return cart.find((c) => c.productId === productId && !c.selectedOptions) || null;
+}
+
+function incCart(productId, lineId) {
+    const line = cartLine(productId, lineId);
     if (!line) return addToCart(productId);
     const p = viewingProducts.find((x) => x.id === productId);
     const left = productStockLeft(p, viewingStore);
@@ -4726,8 +4845,9 @@ function incCart(productId) {
     renderMarketplace();
 }
 
-function decCart(productId) {
-    const idx = cart.findIndex((c) => c.productId === productId);
+function decCart(productId, lineId) {
+    let idx = lineId ? cart.findIndex((c) => c.lineId === lineId) : -1;
+    if (idx < 0) idx = cart.findIndex((c) => c.productId === productId && !c.selectedOptions);
     if (idx < 0) return;
     cart[idx].qty -= 1;
     if (cart[idx].qty <= 0) cart.splice(idx, 1);
@@ -4902,7 +5022,10 @@ async function placeOrder(orderOpts = {}) {
         const base = roundMoney(Number.isFinite(raw) ? raw : (Number(i.price) || 0));
         return {
             productId: i.productId,
-            name: i.name,
+            name: i.optionsDetail ? `${i.name} · ${i.optionsDetail}` : i.name,
+            optionsDetail: i.optionsDetail || '',
+            optionsNote: i.optionsNote || '',
+            selectedOptions: i.selectedOptions || null,
             basePrice: base,
             price: base,
             displayPrice: base,
@@ -4926,7 +5049,14 @@ async function placeOrder(orderOpts = {}) {
         }
         const res = await window.hrGuest.guestCreate('store_order', guest, {
             storeId: viewingStore.id,
-            items: cart.map((i) => ({ productId: i.productId, qty: i.qty, name: i.name })),
+            items: cart.map((i) => ({
+                productId: i.productId,
+                qty: i.qty,
+                name: i.name,
+                basePrice: i.basePrice,
+                selectedOptions: i.selectedOptions || null,
+                optionsNote: i.optionsNote || ''
+            })),
             deliveryAddress: address, deliveryLat, deliveryLng, recipientName, recipientPhone, notes,
             deliveryVehicle: ride, cityId: city.cityId, cityName: city.cityName,
         });
@@ -5188,9 +5318,13 @@ function onMarketplaceClick(e) {
         if (storeId) openStoreMapPinSheet(storeId);
         return;
     }
-    if (action === 'cart-add' && productId) return addToCart(productId);
-    if (action === 'cart-inc' && productId) return incCart(productId);
-    if (action === 'cart-dec' && productId) return decCart(productId);
+    if (action === 'cart-add' && productId) {
+        const product = viewingProducts.find((x) => x.id === productId);
+        if (productHasOptionGroups(product)) return openMenuOptions(product);
+        return addToCart(productId);
+    }
+    if (action === 'cart-inc' && productId) return incCart(productId, t.getAttribute('data-line-id'));
+    if (action === 'cart-dec' && productId) return decCart(productId, t.getAttribute('data-line-id'));
     if (action === 'open-cart') {
         marketplaceView = 'cart';
         return renderMarketplace();
@@ -6167,6 +6301,7 @@ export function buildEditProductCardHtml(p, store = myStore, stores = myStores) 
                     </label>
                 </div>
             </div>
+            ${buildOptionEditorHtml(p.optionGroups || [], myStore?.optionGroupLibrary || [])}
             ${otherBranchesCount > 0 ? `
                 <label class="merchant-edit-sync-check">
                     <input type="checkbox" id="m-edit-prod-sync-branches" checked>
@@ -6287,6 +6422,8 @@ export async function saveEditedProduct(productId) {
         }
         patch.stock = stock;
     }
+    const groups = readOptionEditor(document.querySelector('[data-menu-editor="1"]'));
+    if (groups.length) patch.optionGroups = groups;
 
     try {
         toast(pendingEditProductPhoto ? 'Subiendo nueva imagen y guardando cambios…' : 'Guardando cambios del producto…', 'info');
@@ -6300,6 +6437,20 @@ export async function saveEditedProduct(productId) {
         }
         await updateDoc(publicDoc('store_products', pid), patch);
         Object.assign(p, patch);
+        if (groups.length && myStore?.id) {
+            const prev = Array.isArray(myStore.optionGroupLibrary) ? myStore.optionGroupLibrary : [];
+            const byId = new Map(prev.map((g) => [g.id, g]));
+            groups.forEach((g) => byId.set(g.id, g));
+            const optionGroupLibrary = [...byId.values()];
+            await updateDoc(publicDoc('stores', myStore.id), { optionGroupLibrary }).catch(() => {});
+            myStore.optionGroupLibrary = optionGroupLibrary;
+            await Promise.all(groups.map((group) => setDoc(publicDoc('store_option_groups', `${myStore.id}_${group.id}`), {
+                ...group,
+                storeId: myStore.id,
+                ownerId: myStore.ownerId || getCurrentUser()?.uid || null,
+                updatedAt: serverTimestamp()
+            }))).catch(() => {});
+        }
 
         let syncedBranches = 0;
         if (syncBranches && myStores.length > 1) {
@@ -7323,7 +7474,7 @@ async function createDeliveryTripForOrder(order) {
     if (!fromZone && ride === 'auto') priceNum = computeCarDeliveryFee(priceNum);
     else if (fromZone && ride === 'auto') priceNum = Math.max(CAR_MIN_DELIVERY_FEE, priceNum);
     const priceText = `${formatLempiras(priceNum)}`;
-    const itemsLine = (order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
+    const itemsLine = (order.items || []).map((i) => `${i.qty}× ${i.name}${i.optionsNote ? ` (${i.optionsNote})` : ''}`).join(', ');
     const packageDescription = `Pedido tienda: ${itemsLine}`.slice(0, 400);
     const sla = getServiceMeta('delivery')?.slaMinutes || 30;
 
@@ -7466,6 +7617,31 @@ async function onMerchantClick(e) {
             desc: zoomBtn.getAttribute('data-photo-desc') || '',
             priceText: zoomBtn.getAttribute('data-photo-price') || '',
         });
+    }
+    const useSaved = e.target.closest('[data-menu-editor-use]');
+    if (useSaved) {
+        e.preventDefault();
+        const id = useSaved.getAttribute('data-menu-editor-use');
+        const group = normalizeOptionGroups(myStore?.optionGroupLibrary).find((g) => g.id === id);
+        if (group) {
+            useSaved.closest('[data-menu-editor]')?.querySelector('[data-menu-editor-groups]')
+                ?.insertAdjacentHTML('beforeend', groupEditorHtml(group));
+        }
+        return;
+    }
+    const addGroupBtn = e.target.closest('[data-menu-editor-add-group]');
+    if (addGroupBtn) {
+        e.preventDefault();
+        addGroupBtn.closest('[data-menu-editor]')?.querySelector('[data-menu-editor-groups]')
+            ?.insertAdjacentHTML('beforeend', blankGroupHtml());
+        return;
+    }
+    const addOptBtn = e.target.closest('[data-editor-add-option]');
+    if (addOptBtn) {
+        e.preventDefault();
+        addOptBtn.closest('[data-editor-group]')?.querySelector('[data-editor-options]')
+            ?.insertAdjacentHTML('beforeend', blankOptionHtml());
+        return;
     }
     const t = e.target.closest('[data-merchant-action]');
     if (!t) return;

@@ -264,7 +264,7 @@ export function ordersCsv(list) {
     const rows = list.map((o) => {
         const ms = tsMs(o.createdAt); const fee = feeOf(o); const items = Number(o.itemsTotal) || 0;
         return [dayKey(ms), new Date(ms).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ }), o.id, o.storeName || '', o.clientName || o.recipientName || '',
-            o.recipientPhone || o.clientPhone || '', zoneName(o) || 'sin zona', (o.items || []).map((i) => `${i.qty}x ${i.name}`).join(' | '), items.toFixed(2),
+            o.recipientPhone || o.clientPhone || '', zoneName(o) || 'sin zona', (o.items || []).map((i) => `${i.qty}x ${i.name}${i.optionsNote ? ` (${i.optionsNote})` : ''}`).join(' | '), items.toFixed(2),
             fee == null ? '' : fee.toFixed(2), o.deliveryFeeSource || '', (items + (fee || 0)).toFixed(2), o.paymentMethod === 'saldo' ? 'puntos' : 'efectivo', STATUS_LABEL[o.status] || o.status];
     });
     return '\ufeff' + [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
@@ -367,7 +367,7 @@ function statusLabelOf(o) {
 function liveCardHtml(o, now) {
     const st = stuckInfo(o, now); const since = stateSinceMs(o); const min = since ? Math.max(0, Math.floor((now - since) / 60000)) : null;
     const fee = feeOf(o); const isNew = S.alert?.id === o.id;
-    const items = (o.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
+    const items = (o.items || []).map((i) => `${i.qty}× ${i.name}${i.optionsNote ? ` (${i.optionsNote})` : ''}`).join(', ');
     const tail = o.status === 'delivered'
         ? `Entregado ${esc(when(tsMs(o.updatedAt) || since))}${o.driverName ? ` · 🛵 ${esc(o.driverName)}` : ''}`
         : o.status === 'cancelled'

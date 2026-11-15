@@ -62,7 +62,12 @@ function cartLines(cart) { return (cart || []).map((i) => `• ${i.qty}× ${i.na
 
 /** Mismo payload que la app (js/merchant-stores.js) + marcas de WhatsApp. */
 function buildWaCustomerOrder({ store, cart, dest, vehicle, phone, name, nowMs, serverTs, notes = '', recipient = null, pay = null }) {
-    const items = cart.map((i) => ({ productId: i.productId, name: String(i.name).slice(0, 80), basePrice: money(i.price), price: money(i.price), displayPrice: money(i.price), merchantShare: 0, buyerShare: 0, qty: Number(i.qty) || 1, photoUrl: i.photoUrl || null }));
+    const items = cart.map((i) => ({
+        productId: i.productId, name: String(i.name).slice(0, 180), basePrice: money(i.price), price: money(i.price), displayPrice: money(i.price), merchantShare: 0, buyerShare: 0, qty: Number(i.qty) || 1, photoUrl: i.photoUrl || null,
+        selectedOptions: i.selectedOptions && typeof i.selectedOptions === 'object' ? i.selectedOptions : null,
+        optionsDetail: i.optionsDetail ? String(i.optionsDetail).slice(0, 180) : '',
+        optionsNote: i.optionsNote ? String(i.optionsNote).slice(0, 180) : ''
+    }));
     const itemsTotal = money(items.reduce((s, i) => s + i.basePrice * i.qty, 0));
     return {
         storeId: store.id, storeName: store.name || 'Tienda', ownerId: store.ownerId,

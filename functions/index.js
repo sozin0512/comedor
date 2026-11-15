@@ -10,6 +10,7 @@ const schedCopy = require('./scheduled-trip-driver-ui');
 const { protectApprovedComfortPatch, keepStoredDocumentCodes } = require('./vehicle-comfort');
 const { driverQualifiesForCategory, quoteCategoryFare } = require('./ride-category-offer');
 const waitingLock = require('./scheduled-trip-client-lock');
+const { expectedOrderPricing } = require('./menu-options');
 
 initializeApp();
 
@@ -5205,6 +5206,29 @@ exports.onStoreOrderCreatedPush = onDocumentCreated(
         if (!d.ownerId) return;
         // Solo pedidos nuevos del cliente
         if (d.status && d.status !== 'pending') return;
+
+        const priceOk = await (async () => {
+            const items = Array.isArray(d.items) ? d.items : [];
+            if (!items.length) return true;
+            const ids = [...new Set(items.map((i) => i && i.productId).filter(Boolean))];
+            const productsById = {};
+            await Promise.all(ids.map(async (id) => {
+                const snap = await db.doc(`artifacts/${appId}/public/data/store_products/${id}`).get().catch(() => null);
+                if (snap?.exists) productsById[id] = snap.data();
+            }));
+            const check = expectedOrderPricing(productsById, items);
+            const submitted = Number(d.itemsTotal);
+            const totalOk = !Number.isFinite(submitted) || Math.abs(submitted - check.total) <= 0.05;
+            if (check.ok && totalOk) return true;
+            await event.data.ref.update({
+                status: 'cancelled',
+                priceRejected: true,
+                priceRejectReason: check.reason || 'El total no coincide con el menú',
+                updatedAt: FieldValue.serverTimestamp()
+            }).catch(() => {});
+            return false;
+        })();
+        if (!priceOk) return;
 
         const items = Array.isArray(d.items) ? d.items : [];
         const summary = items

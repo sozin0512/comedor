@@ -809,6 +809,20 @@ service cloud.firestore {
       );
     }
 
+    // Grupos reutilizables de opciones (sabores, acompañamientos).
+    // Cualquiera los lee con el menú. Solo la tienda dueña o staff los escribe.
+    match /artifacts/{app}/public/data/store_option_groups/{groupId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && (
+        isStaff(app)
+        || request.resource.data.ownerId == requestUid()
+      );
+      allow delete: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.ownerId == requestUid()
+      );
+    }
+
     match /artifacts/{app}/public/data/store_orders/{orderId} {
       // Cliente, dueño de tienda, repartidor asignado y staff ven el pedido
       allow read: if isSignedIn() && (
