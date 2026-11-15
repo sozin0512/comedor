@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Elige el tipo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        html, body { margin: 0; background: #d7e3c8; font-family: Inter, system-ui, sans-serif; }
+        .phone { width: 412px; min-height: 915px; margin: 0 auto; box-sizing: border-box; padding: 72px 12px 24px; }
+        .panel { background: #fff; border-radius: 22px; padding: 12px 12px 14px; box-shadow: 0 16px 40px rgba(15,23,42,.18); }
+        .head { display: flex; align-items: center; justify-content: space-between; color: #94a3b8; font-size: 11px; font-weight: 900; letter-spacing: .08em; }
+        .head button { border: 0; background: none; color: #94a3b8; font-size: 20px; }
+        .pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+        .pill { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 38px; border-radius: 999px; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; font-size: 9px; font-weight: 900; letter-spacing: .02em; }
+        .pill.on { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+        .pill.off { background: #f8fafc; color: #94a3b8; border-style: dashed; }
+        .badge { position: absolute; top: -8px; right: 4px; background: #e2e8f0; color: #64748b; font-size: 8px; font-weight: 900; border-radius: 999px; padding: 2px 5px; letter-spacing: .04em; }
+        .sub { margin: 14px 2px 4px; font-size: 15px; font-weight: 800; color: #334155; }
+        .card { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 11px 12px; margin-top: 8px; color: #0f172a; }
+        .card.on { border-color: #2563eb; background: #eff6ff; }
+        .card.dash { border-style: dashed; background: #f8fafc; color: #64748b; }
+        .ico { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; font-size: 16px; }
+        .v { background: #ede9fe; color: #7c3aed; }
+        .b { background: #dbeafe; color: #2563eb; }
+        .s { background: #e0f2fe; color: #0284c7; }
+        .r { background: #ffe4e6; color: #e11d48; }
+        .copy { flex: 1; min-width: 0; }
+        .copy strong { display: block; font-size: 15px; font-weight: 900; }
+        .copy small { display: block; font-size: 12px; color: #64748b; font-weight: 700; }
+        .price { text-align: right; }
+        .price b { display: block; font-size: 15px; font-weight: 900; }
+        .price small { display: block; font-size: 10px; color: #94a3b8; font-weight: 700; }
+        .go { margin-top: 12px; width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: linear-gradient(145deg, #1d4ed8, #2563eb); color: #fff; font-weight: 900; font-size: 15px; letter-spacing: .04em; }
+    </style>
+</head>
+<body>
+<div class="phone"><div class="panel" id="root">Calculando tarifa…</div></div>
+<script type="module">
+import { calculateServiceFare } from '../js/service-types.js';
+import { analyzeTrafficFromRoute, buildRouteConditions } from '../js/route-conditions.js';
+import { applyFixedRouteFareToPrice } from '../js/route-fixed-fares.js';
+import { formatLempiras } from '../js/money-format.js';
+import { normalizeCutoffs } from '../js/vehicle-categories.js';
+
+const selected = new URLSearchParams(location.search).get('pick') || 'economico';
+const route = { distanceMeters: 8200, durationMillis: 20 * 60000, staticDurationMillis: 12 * 60000 };
+const km = route.distanceMeters / 1000;
+const conditions = buildRouteConditions(analyzeTrafficFromRoute(route), null);
+const note = (conditions.trafficSurchargePercent || 0) > 0 ? 'con tráfico' : 'precio estimado';
+const cuts = normalizeCutoffs(null);
+const familiarCap = (cuts.familiarMinSeats >= 6) ? `Hasta ${cuts.familiarMaxSeats} personas` : 'Hasta 4 personas';
+const options = [
+    ['moto', 'moto', 'moto', 'Moto (pasajeros)', 'Hasta 2 personas', 'fa-motorcycle', 'v'],
+    ['economico', 'auto', 'economico', 'Económico', 'Hasta 4 personas', 'fa-car', 'b'],
+    ['taxi_vip', 'auto', null, 'Taxi VIP', 'Hasta 4 personas', 'fa-car', 'b'],
+    ['confort', 'auto', 'confort', 'Confort', 'Hasta 4 personas', 'fa-snowflake', 's'],
+    ['familiar', 'auto', 'familiar', 'Familiar', familiarCap, 'fa-shuttle-van', 'b'],
+    ['vip', 'auto', 'vip', 'VIP', 'Hasta 4 personas', 'fa-crown', 'b'],
+];
+function quote(service, category) {
+    let price = calculateServiceFare(service, km, conditions, { passengers: 1, rideCategory: category });
+    price = applyFixedRouteFareToPrice(price, { serviceType: service, distanceKm: km }).price;
+    return formatLempiras(price);
+}
+const names = { moto: 'MOTO', economico: 'ECONÓMICO', taxi_vip: 'TAXI VIP', confort: 'CONFORT', familiar: 'FAMILIAR', vip: 'VIP' };
+const pill = selected === 'moto' ? 'moto' : 'vip';
+const cards = options.map(([id, svc, cat, name, cap, icon, tint]) => `
+    <div class="card${id === selected ? ' on' : ''}">
+        <span class="ico ${tint}"><i class="fas ${icon}"></i></span>
+        <span class="copy"><strong>${name}</strong><small>${cap}</small></span>
+        <span class="price"><b>${quote(svc, cat)}</b><small>${note}</small></span>
+    </div>`).join('');
+document.getElementById('root').innerHTML = `
+    <div class="head"><span>ELIGE EL TIPO</span><button type="button" aria-label="Cerrar">×</button></div>
+    <div class="pills">
+        <div class="pill${pill === 'moto' ? ' on' : ''}"><i class="fas fa-motorcycle"></i> MOTO (PASAJEROS)</div>
+        <div class="pill${pill === 'vip' ? ' on' : ''}"><i class="fas fa-car"></i> TAXI VIP</div>
+        <div class="pill off"><span class="badge">NO DISPONIBLE</span><i class="fas fa-taxi"></i> TAXI T-</div>
+    </div>
+    <p class="sub">Cambiar tipo de vehículo</p>
+    ${cards}
+    <div class="card dash"><span class="ico r"><i class="fas fa-taxi"></i></span><span class="copy"><strong>Taxi tradicional · No disponible</strong><small>Taxi normal (tradicional) no está disponible en Tegucigalpa por ahora.</small></span></div>
+    <button class="go" type="button">CONTINUAR CON ${names[selected] || 'ECONÓMICO'}</button>`;
+document.body.dataset.note = note;
+</script>
+</body>
+</html>
