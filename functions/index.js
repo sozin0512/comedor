@@ -5387,6 +5387,13 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
                     : `${storeName}: el pedido fue cancelado.`
             }
         };
+        // El cliente pasa a recoger a la tienda: avisos sin repartidor.
+        if (String(after.fulfillment || '') === 'pickup' || String(after.deliveryVehicle || '') === 'pickup') {
+            labels.accepted = { title: '✅ Pedido aceptado', body: `${storeName} aceptó tu pedido. Te avisamos cuando esté listo para recoger.` };
+            labels.preparing = { title: '👨‍🍳 Preparando el pedido', body: `${storeName} está preparando tu pedido. Te avisamos cuando puedas pasar a recogerlo.` };
+            labels.ready = { title: '🛍️ ¡Tu pedido está listo!', body: `${storeName} ya tiene listo tu pedido. Pasa a recogerlo${after.storeAddress ? `: ${String(after.storeAddress).slice(0, 80)}` : ''}.` };
+            labels.delivered = { title: '🎉 Pedido retirado', body: `Ya recogiste tu pedido en ${storeName}. ¡Gracias por usar HonduRaite!` };
+        }
         // El viaje de entrega se canceló del todo: avisar a la tienda para que pida otro conductor.
         if (status === 'ready' && tripCancelledNow) {
             if (after.ownerId) {

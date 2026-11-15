@@ -33,9 +33,23 @@ const STEP_LABEL = {
     5: 'Entregado',
 };
 
+function isPickup(o) {
+    return String(o?.fulfillment || '').toLowerCase() === 'pickup' || String(o?.deliveryVehicle || '').toLowerCase() === 'pickup';
+}
+
 export function clientOrderStep(o) {
     let current = 1;
     const status = String(o?.status || '');
+    // El cliente pasa a recoger: 4 pasos, sin «En camino».
+    if (isPickup(o)) {
+        const labels = { 1: 'Recibido', 2: 'Preparando', 3: 'Listo para recoger', 4: 'Retirado' };
+        if (status === 'preparing') current = 2;
+        else if (status === 'ready') current = 3;
+        else if (status === 'delivered') current = 4;
+        else if (status === 'cancelled') current = 0;
+        const label = labels[current] || '';
+        return { current, label, total: 4, headline: current ? `Paso ${current} de 4 · ${label}` : 'Cancelado' };
+    }
     if (status === 'preparing') current = 2;
     else if (status === 'ready') current = 3;
     else if (status === 'out_for_delivery') current = 4;
@@ -52,6 +66,13 @@ export function clientOrderStep(o) {
 export function clientOrderStepNote(o) {
     const status = String(o?.status || '');
     const who = firstName(o?.driverName);
+    if (isPickup(o)) {
+        if (status === 'pending') return 'La tienda aún no acepta tu pedido.';
+        if (status === 'accepted') return 'Ya lo aceptaron. Te avisamos cuando esté listo.';
+        if (status === 'preparing') return 'Lo están preparando. Todavía no salgas: te avisamos cuando esté listo.';
+        if (status === 'ready') return '¡Listo! Ya podés pasar a recogerlo a la tienda.';
+        if (status === 'delivered') return 'Pedido retirado.';
+    }
     if (status === 'pending') return 'El restaurante aún no acepta. El reparto se pide cuando marquen que el pedido está preparado.';
     if (status === 'accepted') return 'Ya lo aceptaron. Falta que marquen que lo están preparando.';
     if (status === 'preparing') return 'Lo están preparando. El reparto se llama cuando esté preparado.';

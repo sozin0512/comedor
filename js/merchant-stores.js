@@ -188,7 +188,40 @@ function orderRide(order) {
     return 'both';
 }
 
+/** v120 · Pedido que el cliente pasa a recoger a la tienda (sin envío ni repartidor). */
+export function isPickupOrder(order) {
+    return String(order?.fulfillment || '').toLowerCase() === 'pickup'
+        || String(order?.deliveryVehicle || '').toLowerCase() === 'pickup';
+}
+/** El cliente eligió «Paso a recoger» en el checkout actual. */
+let checkoutPickup = false;
+
+/** Caja con dirección de la tienda, cómo llegar y teléfono (checkout y seguimiento del cliente). */
+function pickupStoreInfoHtml(src, { ready = false } = {}) {
+    const name = src?.storeName || src?.name || 'la tienda';
+    const address = src?.storeAddress || src?.address || '';
+    const lat = Number(src?.storeLat ?? src?.lat);
+    const lng = Number(src?.storeLng ?? src?.lng);
+    const hasPoint = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+    const phone = String(src?.storePhone || src?.phone || '').replace(/[^\d+]/g, '');
+    const mapUrl = hasPoint
+        ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${lat},${lng}`)}`
+        : (address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${address}`)}` : '');
+    return `
+        <div class="store-pickup-box${ready ? ' is-ready' : ''}">
+            <p class="store-pickup-box__title"><i class="fas fa-store"></i> ${ready ? '¡Tu pedido está listo! Pasá a recogerlo' : 'Pasás a recogerlo a la tienda'}</p>
+            <p class="store-pickup-box__name">${esc(name)}</p>
+            ${address ? `<p class="store-pickup-box__addr"><i class="fas fa-map-marker-alt"></i> ${esc(address)}</p>` : ''}
+            <p class="store-pickup-box__note">Sin costo de envío. ${ready ? 'Decí tu nombre al llegar.' : 'Te avisamos cuando esté listo.'}</p>
+            <div class="store-pickup-box__actions">
+                ${mapUrl ? `<a class="stores-secondary-btn" href="${esc(mapUrl)}" target="_blank" rel="noopener"><i class="fas fa-route"></i> Cómo llegar</a>` : ''}
+                ${phone.replace(/\D/g, '').length >= 8 ? `<a class="stores-secondary-btn" href="tel:${esc(phone)}"><i class="fas fa-phone"></i> Llamar a la tienda</a>` : ''}
+            </div>
+        </div>`;
+}
+
 function orderRideName(order) {
+    if (isPickupOrder(order)) return 'retiro en tienda';
     const ride = orderRide(order);
     if (ride === 'auto') return 'carro';
     if (ride === 'moto') return 'moto';
@@ -2315,6 +2348,20 @@ export function clientOrderNotificationCopy(o) {
     const store = o.storeName || 'El restaurante';
     const rideLbl = orderRideName(o);
     const driverFirst = o.driverName ? String(o.driverName).trim().split(/\s+/)[0] : '';
+    if (isPickupOrder(o)) {
+        if (o.status === 'accepted') {
+            return { tone: 'blue', icon: '✅', title: `Pedido aceptado · ${store}`, body: `${store} aceptó tu pedido. Te avisamos cuando esté listo para recoger.`, pill: `✅ ${store} aceptó tu pedido`, sub: 'Pasás a recogerlo cuando esté listo' };
+        }
+        if (o.status === 'preparing') {
+            return { tone: 'violet', icon: '👨‍🍳', title: 'Preparando el pedido', body: `${store} está preparando tu pedido. Te avisamos cuando puedas pasar a recogerlo.`, pill: `👨‍🍳 ${store} está preparando tu pedido…`, sub: 'Todavía no salgas: te avisamos cuando esté listo' };
+        }
+        if (o.status === 'ready') {
+            return { tone: 'emerald', icon: '🛍️', title: '¡Tu pedido está listo para recoger!', body: `${store} ya tiene listo tu pedido. Pasá a recogerlo${o.storeAddress ? `: ${o.storeAddress}` : ''}.`, pill: '🛍️ ¡Pedido listo! Pasá a recogerlo', sub: `Te esperan en ${store}` };
+        }
+        if (o.status === 'delivered') {
+            return { tone: 'emerald', icon: '🎉', title: '¡Pedido retirado!', body: `Ya recogiste tu pedido en ${store}. ¡Buen provecho!`, pill: `🎉 Pedido retirado · ${store}`, sub: '¡Gracias por pedir en HonduRaite!' };
+        }
+    }
     if (o.status === 'accepted') {
         return {
             tone: 'blue',
@@ -3610,9 +3657,9 @@ function renderCartHtml() {
             <div class="flex justify-between text-sm font-black text-slate-900">
                 <span>Total productos</span><span>${money(grand)}</span>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1">En el siguiente paso eliges moto o carro. Tú pagas el envío completo de la zona (en carro mínimo L. 75.00).</p>
+            <p class="text-[11px] text-slate-500 mt-1">En el siguiente paso eliges envío en moto o carro (pagas el envío de la zona; en carro mínimo L. 75.00) o <b>pasar a recogerlo</b> a la tienda sin costo de envío.</p>
         </div>
-        <button type="button" class="stores-primary-btn w-full mt-4" data-stores-action="to-checkout">Continuar al envío</button>
+        <button type="button" class="stores-primary-btn w-full mt-4" data-stores-action="to-checkout">Continuar: envío o recoger</button>
     `;
 }
 
@@ -3628,7 +3675,7 @@ function paymentMethodLabel(method) {
 }
 
 /** Modal: efectivo o puntos (igual que viajes). */
-function chooseStorePaymentMethod(itemsTotal) {
+function chooseStorePaymentMethod(itemsTotal, { pickup = false } = {}) {
     return new Promise((resolve) => {
         const bal = getClientBalance();
         const modal = document.createElement('div');
@@ -3646,7 +3693,7 @@ function chooseStorePaymentMethod(itemsTotal) {
                         <i class="fas fa-money-bill-wave text-2xl text-emerald-600"></i>
                         <span>
                             <strong class="block text-sm text-slate-900">Efectivo</strong>
-                            <small class="text-xs text-slate-500">Pagas productos + envío al recibir</small>
+                            <small class="text-xs text-slate-500">${pickup ? 'Pagas los productos en la tienda al recoger' : 'Pagas productos + envío al recibir'}</small>
                         </span>
                     </button>
                     <button type="button" data-pay="saldo"
@@ -3663,7 +3710,7 @@ function chooseStorePaymentMethod(itemsTotal) {
                     </button>
                 </div>
                 <p class="text-[10px] text-slate-400 text-center mt-3 leading-snug">
-                    El envío de la zona lo pagas completo, en efectivo al conductor. Moto o carro.
+                    ${pickup ? 'Sin envío: pasás a recoger tu pedido a la tienda.' : 'El envío de la zona lo pagas completo, en efectivo al conductor. Moto o carro.'}
                 </p>
                 <button type="button" data-pay="cancel" class="w-full mt-3 py-3 text-slate-500 text-sm font-bold">Cancelar</button>
             </div>
@@ -3783,32 +3830,42 @@ function renderCheckoutHtml() {
                     Los productos se pagan con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío de la zona lo pagas completo al conductor.
                 </p>
             </div>
-            <div class="store-ride-pick" role="group" aria-label="Cómo quieres el envío">
-                <button type="button" class="store-ride-btn ${checkoutVehicle() === 'moto' ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="moto">
+            <div class="store-ride-pick store-ride-pick--3" role="group" aria-label="Cómo quieres recibir tu pedido">
+                <button type="button" class="store-ride-btn ${!checkoutPickup && checkoutVehicle() === 'moto' ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="moto">
                     <i class="fas fa-motorcycle"></i>
                     <span>Moto</span>
                     <small>Tarifa de la zona</small>
                 </button>
-                <button type="button" class="store-ride-btn ${checkoutVehicle() === 'auto' ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="auto">
+                <button type="button" class="store-ride-btn ${!checkoutPickup && checkoutVehicle() === 'auto' ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="auto">
                     <i class="fas fa-car"></i>
                     <span>Carro</span>
                     <small>Desde L. 75</small>
                 </button>
+                <button type="button" class="store-ride-btn store-ride-btn--pickup ${checkoutPickup ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="pickup">
+                    <i class="fas fa-store"></i>
+                    <span>Paso a recoger</span>
+                    <small>Sin envío</small>
+                </button>
+            </div>
+            <div id="store-checkout-pickup-info" class="${checkoutPickup ? '' : 'hidden'}">
+                ${pickupStoreInfoHtml(viewingStore)}
+            </div>
+            <div id="store-checkout-delivery-fields" class="space-y-3 ${checkoutPickup ? 'hidden' : ''}">
+                <label class="stores-field">
+                    <span>Dirección de entrega *</span>
+                    <input id="store-checkout-address" type="text" placeholder="Colonia, referencia, casa..."
+                           value="${esc(destVal)}" class="stores-input">
+                </label>
+                ${checkoutFeeHtml()}
+                ${loyaltyPromoBoxHtml()}
             </div>
             <label class="stores-field">
-                <span>Dirección de entrega *</span>
-                <input id="store-checkout-address" type="text" placeholder="Colonia, referencia, casa..."
-                       value="${esc(destVal)}" class="stores-input">
-            </label>
-            ${checkoutFeeHtml()}
-            ${loyaltyPromoBoxHtml()}
-            <label class="stores-field">
-                <span>Quién recibe *</span>
+                <span id="store-checkout-recipient-label">${checkoutPickup ? 'Quién recoge *' : 'Quién recibe *'}</span>
                 <input id="store-checkout-recipient" type="text" placeholder="Nombre"
                        value="${esc(profile.name || '')}" class="stores-input">
             </label>
             <label class="stores-field">
-                <span>WhatsApp de quien recibe *</span>
+                <span id="store-checkout-phone-label">${checkoutPickup ? 'WhatsApp de quien recoge *' : 'WhatsApp de quien recibe *'}</span>
                 <input id="store-checkout-phone" type="tel" placeholder="+504..."
                        value="${esc(profile.phone || '')}" class="stores-input">
             </label>
@@ -3816,11 +3873,22 @@ function renderCheckoutHtml() {
                 <span>Notas del pedido (opcional)</span>
                 <textarea id="store-checkout-notes" rows="2" placeholder="Sin cebolla, tocar timbre..." class="stores-input"></textarea>
             </label>
-            <button type="button" class="stores-primary-btn w-full" data-stores-action="place-order">
-                Elegir pago y enviar pedido
+            <button type="button" class="stores-primary-btn w-full" data-stores-action="place-order" id="store-checkout-submit">
+                ${checkoutPickup ? 'Elegir pago y pedir para recoger' : 'Elegir pago y enviar pedido'}
             </button>
         </div>
     `;
+}
+
+/** Solo para pruebas / capturas: pinta el checkout y las tarjetas de pedido con datos de ejemplo. */
+export function __previewStoreCheckoutHtml(store, items, pickup = false) {
+    viewingStore = store;
+    cart = Array.isArray(items) ? items : [];
+    checkoutPickup = !!pickup;
+    return renderCheckoutHtml();
+}
+export function __previewOrderCardHtml(order, opts = {}) {
+    return orderCardHtml(order, opts);
 }
 
 function renderClientOrdersHtml() {
@@ -3837,6 +3905,10 @@ function renderClientOrdersHtml() {
 
 /** Estado visible: «Pedido preparado» con viaje pedido = «Pedido preparado · buscando delivery» (nadie lo aceptó todavía). */
 export function orderStatusView(o) {
+    if (isPickupOrder(o)) {
+        if (o.status === 'ready') return { label: 'Listo para recoger', tone: 'emerald' };
+        if (o.status === 'delivered') return { label: 'Retirado en tienda', tone: 'emerald' };
+    }
     if (o?.status === 'ready' && o?.tripId) return { label: 'Pedido preparado · buscando delivery', tone: 'amber' };
     if (o?.status === 'out_for_delivery' && o?.driverName) {
         return { label: `En camino · ${String(o.driverName).split(/\s+/)[0]}`, tone: 'blue' };
@@ -3844,9 +3916,50 @@ export function orderStatusView(o) {
     return ORDER_STATUS[o?.status] || ORDER_STATUS.pending;
 }
 
+/** Pedido para recoger: 4 pasos (sin «En camino»): Recibido → Preparando → Listo para recoger → Retirado. */
+function pickupProgressStepperHtml(o, opts = {}) {
+    const labels = ['Recibido', 'Preparando', 'Listo para recoger', 'Retirado'];
+    let current = 1;
+    if (o.status === 'preparing') current = 2;
+    else if (o.status === 'ready') current = 3;
+    else if (o.status === 'delivered') current = 4;
+    const client = opts.client === true;
+    const notes = client
+        ? {
+            pending: 'La tienda aún no acepta tu pedido.',
+            accepted: 'Ya lo aceptaron. Te avisamos cuando esté listo.',
+            preparing: 'Lo están preparando. Todavía no salgas: te avisamos cuando esté listo.',
+            ready: '¡Listo! Ya podés pasar a recogerlo a la tienda.',
+            delivered: 'Pedido retirado.',
+        }
+        : {
+            pending: '🏃 El cliente pasa a recoger: no se llama repartidor.',
+            accepted: '🏃 El cliente pasa a recoger. Marca «Preparando el pedido» para avisarle.',
+            preparing: '👨‍🍳 Cuando esté listo marca «Pedido listo» y se le avisa al cliente para que pase.',
+            ready: '🛍️ Listo y avisado. Cuando el cliente lo recoja, marca «Entregado al cliente».',
+            delivered: '🎉 Entregado al cliente en la tienda.',
+        };
+    const track = labels.map((label, i) => {
+        const n = i + 1;
+        const cls = n < current ? 'is-done' : (n === current ? ('is-current' + (current >= 3 ? ' is-ready' : '')) : '');
+        return `<div class="order-progress-step order-progress-node ${cls}">
+            <span class="order-progress-dot">${n < current ? '✓' : n}</span>
+            <span class="order-progress-label">${esc(label)}</span>
+        </div>`;
+    }).join('');
+    const note = notes[o.status] || '';
+    return `
+        <div class="order-progress-stepper order-progress-stepper--pickup" data-order-step="${current}">
+            ${client ? `<div class="order-progress-head"><p class="order-progress-headline">Paso ${current} de 4 · ${esc(labels[current - 1])}</p></div>` : ''}
+            <div class="order-progress-track">${track}</div>
+            ${note ? `<p class="order-progress-note ${current >= 3 ? 'order-progress-caption--ready' : ''}">${esc(note)}</p>` : ''}
+        </div>`;
+}
+
 /** Barra de progreso de 5 pasos: 1. Recibido -> 2. Preparando el pedido -> 3. Pedido preparado (llamando delivery) -> 4. En camino -> 5. Entregado */
 export function orderProgressStepperHtml(o, opts = {}) {
     if (!o || o.status === 'cancelled') return '';
+    if (isPickupOrder(o)) return pickupProgressStepperHtml(o, opts);
     const steps = [
         { num: 1, label: 'Recibido' },
         { num: 2, label: 'Preparando el pedido' },
@@ -3930,8 +4043,10 @@ function orderCardHtml(o, { merchant = false, history = false, focused = false, 
                     ${o.paymentStatus === 'paid' ? ' · pagado' : ''}
                     ${o.paymentStatus === 'refunded' ? ' · reembolsado' : ''}
                 </span>
-                ${o.deliveryAddress ? `<span><i class="fas fa-map-marker-alt"></i> ${esc(o.deliveryAddress)}</span>` : ''}
-                ${!merchant && o.loyaltyPromoId ? orderLoyaltyLineHtml(o) : orderFeeLineHtml(o)}
+                ${isPickupOrder(o)
+                    ? `<span class="order-pickup-badge"><i class="fas fa-store"></i> ${merchant ? `Pasa a recoger: ${esc(o.recipientName || o.clientName || 'el cliente')}` : 'Paso a recoger · sin envío'}</span>`
+                    : `${o.deliveryAddress ? `<span><i class="fas fa-map-marker-alt"></i> ${esc(o.deliveryAddress)}</span>` : ''}
+                ${!merchant && o.loyaltyPromoId ? orderLoyaltyLineHtml(o) : orderFeeLineHtml(o)}`}
             </div>
             ${o.tariffSplit === true ? `
                 <p class="text-[10px] text-slate-500 font-semibold mt-1 leading-snug">
@@ -3944,7 +4059,11 @@ function orderCardHtml(o, { merchant = false, history = false, focused = false, 
             ${o.notes ? `<p class="order-notes">${esc(o.notes)}</p>` : ''}
             ${o.cancelReason === 'out_of_stock' ? `<p class="order-notes">No había stock suficiente. Si pagaste con puntos, se reembolsan.</p>` : ''}
             ${history ? '' : orderProgressStepperHtml(o, { client: !merchant })}
-            ${clientActive ? `<div class="client-order-track" data-client-track="${esc(o.id)}">${clientOrderTrackHtml(o, live, { riderOnly: true })}</div>` : ''}
+            ${clientActive
+                ? (isPickupOrder(o)
+                    ? pickupStoreInfoHtml(o, { ready: o.status === 'ready' })
+                    : `<div class="client-order-track" data-client-track="${esc(o.id)}">${clientOrderTrackHtml(o, live, { riderOnly: true })}</div>`)
+                : ''}
             ${actions}
         </div>
     `;
@@ -4135,6 +4254,10 @@ export function openOrderProductRatingModal(orderId) {
 function clientOrderActionsHtml(o) {
     if (o.status === 'pending' || o.status === 'accepted') {
         return `<button type="button" class="stores-danger-btn mt-2" data-stores-action="cancel-order" data-order-id="${esc(o.id)}">Cancelar pedido</button>`;
+    }
+    if (isPickupOrder(o) && (o.status === 'preparing' || o.status === 'ready')) {
+        // La caja «Pasá a recogerlo» (dirección, cómo llegar, llamar) ya se pinta en la tarjeta.
+        return '';
     }
     if (o.status === 'preparing') {
         return `<p class="text-[11px] text-purple-800 font-bold mt-2"><i class="fas fa-utensils"></i> El restaurante está preparando tu pedido · el delivery se llamará en cuanto esté preparado</p>`;
@@ -4375,6 +4498,44 @@ if (typeof window !== 'undefined') {
 export function merchantOrderActionsHtml(o) {
     const id = esc(o.id);
     const rideName = esc(orderRideName(o));
+    if (isPickupOrder(o)) {
+        const who = esc(o.recipientName || o.clientName || 'el cliente');
+        if (o.status === 'pending') {
+            return `
+            <div class="order-actions">
+                <button type="button" class="stores-primary-btn" data-merchant-action="accept-order" data-order-id="${id}">Aceptar</button>
+                <button type="button" class="stores-prepare-btn" data-merchant-action="accept-and-prepare-order" data-order-id="${id}">👨‍🍳 Aceptar y preparar</button>
+                <button type="button" class="stores-danger-btn" data-merchant-action="reject-order" data-order-id="${id}">Rechazar</button>
+            </div>`;
+        }
+        if (o.status === 'accepted') {
+            return `
+            <div class="order-actions">
+                <button type="button" class="stores-prepare-btn w-full" data-merchant-action="preparing-order" data-order-id="${id}">
+                    👨‍🍳 Marcar: Preparando el pedido
+                </button>
+            </div>`;
+        }
+        if (o.status === 'preparing') {
+            return `
+            <div class="order-actions">
+                <button type="button" class="stores-ready-btn w-full" data-merchant-action="ready-order" data-order-id="${id}">
+                    ✅ Pedido listo · avisar a ${who} que pase a recoger
+                </button>
+            </div>`;
+        }
+        if (o.status === 'ready') {
+            const phone = String(o.recipientPhone || o.clientPhone || '').replace(/\D/g, '');
+            return `
+            <div class="order-actions" style="display:flex;flex-wrap:wrap;gap:6px">
+                <button type="button" class="stores-ready-btn w-full" data-merchant-action="pickup-delivered-order" data-order-id="${id}">
+                    🤝 Entregado al cliente
+                </button>
+                ${phone.length >= 8 ? `<a class="stores-secondary-btn" href="tel:${esc(phone)}"><i class="fas fa-phone"></i> Llamar a ${who}</a>` : ''}
+            </div>`;
+        }
+        return '';
+    }
     if (o.status === 'pending') {
         return `
             <div class="order-flow-hint">
@@ -4623,7 +4784,7 @@ async function placeOrder(orderOpts = {}) {
         if (typeof window.requireAuthForService === 'function') {
             const adults = viewingStore && isStoreAdultsOnly(viewingStore);
             window.requireAuthForService('enviar tu pedido en Tiendas', {
-                guest: adults ? null : (contact) => {
+                guest: (adults || checkoutPickup) ? null : (contact) => {
                     const rn = document.getElementById('store-checkout-recipient');
                     const rp = document.getElementById('store-checkout-phone');
                     if (rn && !rn.value.trim()) rn.value = contact.name;
@@ -4650,9 +4811,11 @@ async function placeOrder(orderOpts = {}) {
     }
 
     clearCheckoutFieldErrors();
+    const pickup = checkoutPickup === true;
+    if (pickup && guest) return toast('Para pasar a recoger tu pedido, inicia sesión o crea tu cuenta.', 'warning');
     const addrEl = document.getElementById('store-checkout-address');
-    let address = addrEl?.value.trim() || '';
-    if (!address && checkoutPointSource() === 'gps') {
+    let address = pickup ? 'Retiro en tienda' : (addrEl?.value.trim() || '');
+    if (!pickup && !address && checkoutPointSource() === 'gps') {
         const gpsPt = checkoutPoint();
         if (gpsPt && Number.isFinite(Number(gpsPt.lat)) && Number.isFinite(Number(gpsPt.lng))) {
             address = `Ubicación GPS (${Number(gpsPt.lat).toFixed(4)}, ${Number(gpsPt.lng).toFixed(4)})`;
@@ -4663,7 +4826,7 @@ async function placeOrder(orderOpts = {}) {
     const recipientPhone = phoneNorm(document.getElementById('store-checkout-phone')?.value || '');
     const notes = document.getElementById('store-checkout-notes')?.value.trim() || '';
 
-    if (!address || address.length < 5) {
+    if (!pickup && (!address || address.length < 5)) {
         markCheckoutFieldInvalid(
             'store-checkout-address',
             !address
@@ -4673,18 +4836,18 @@ async function placeOrder(orderOpts = {}) {
         return toast('Indica la dirección de entrega', 'warning');
     }
     if (!recipientName) {
-        markCheckoutFieldInvalid('store-checkout-recipient', 'Escribe el nombre de la persona que recibe el pedido.');
-        return toast('Indica quién recibe', 'warning');
+        markCheckoutFieldInvalid('store-checkout-recipient', pickup ? 'Escribe el nombre de la persona que pasa a recoger.' : 'Escribe el nombre de la persona que recibe el pedido.');
+        return toast(pickup ? 'Indica quién recoge' : 'Indica quién recibe', 'warning');
     }
     if (!recipientPhone) {
-        markCheckoutFieldInvalid('store-checkout-phone', 'Escribe el WhatsApp o teléfono de quien recibe.');
-        return toast('Indica el WhatsApp de quien recibe', 'warning');
+        markCheckoutFieldInvalid('store-checkout-phone', pickup ? 'Escribe el WhatsApp o teléfono de quien recoge.' : 'Escribe el WhatsApp o teléfono de quien recibe.');
+        return toast(pickup ? 'Indica el WhatsApp de quien recoge' : 'Indica el WhatsApp de quien recibe', 'warning');
     }
-    const ride = checkoutVehicle();
-    if (ride !== 'moto' && ride !== 'auto') {
+    const ride = pickup ? 'pickup' : checkoutVehicle();
+    if (!pickup && ride !== 'moto' && ride !== 'auto') {
         const rideGroup = document.querySelector('.store-ride-pick');
         try { rideGroup?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); } catch (_) {}
-        return toast('Elige moto o carro para el envío', 'warning');
+        return toast('Elige moto, carro o «Paso a recoger»', 'warning');
     }
 
     if (storeTracksStock(viewingStore)) {
@@ -4718,7 +4881,9 @@ async function placeOrder(orderOpts = {}) {
 
     // Zonas de envío: ubicación elegida en «Confirmar pedido» (GPS o pin del mapa) y bloqueo
     // si la ciudad no permite pedidos fuera de zona. El monto lo pone el servidor al crear.
-    const zoneGate = await checkoutGateForOrder(viewingStore);
+    // Recoger en tienda: no hay envío, así que no aplica zona ni ubicación de entrega.
+    const zoneGate = pickup ? {} : await checkoutGateForOrder(viewingStore);
+    if (pickup) { deliveryLat = null; deliveryLng = null; }
     if (zoneGate.point) {
         deliveryLat = zoneGate.point.lat;
         deliveryLng = zoneGate.point.lng;
@@ -4774,7 +4939,7 @@ async function placeOrder(orderOpts = {}) {
     }
 
     // Elegir pago: efectivo o puntos/saldo (como viajes)
-    const paymentMethod = await chooseStorePaymentMethod(itemsTotal);
+    const paymentMethod = await chooseStorePaymentMethod(itemsTotal, { pickup });
     if (!paymentMethod) return;
 
     let paidAmount = null;
@@ -4821,6 +4986,7 @@ async function placeOrder(orderOpts = {}) {
             recipientPhone,
             notes,
             deliveryVehicle: ride,
+            fulfillment: pickup ? 'pickup' : 'delivery',
             paymentMethod,
             paymentStatus,
             paidAmount: paidAmount,
@@ -4842,8 +5008,15 @@ async function placeOrder(orderOpts = {}) {
         }
         resetCheckoutZone();
         cart = [];
+        checkoutPickup = false;
         pendingPlacedOrder = {
             id: placedRef.id,
+            fulfillment: payload.fulfillment,
+            deliveryVehicle: payload.deliveryVehicle,
+            storeAddress: payload.storeAddress,
+            storeLat: payload.storeLat,
+            storeLng: payload.storeLng,
+            storePhone: payload.storePhone,
             storeName: payload.storeName,
             items: payload.items,
             itemsTotal: payload.itemsTotal,
@@ -4858,9 +5031,9 @@ async function placeOrder(orderOpts = {}) {
         startClientOrdersListener();
         renderMarketplace();
         if (paymentMethod === 'saldo') {
-            toast(`¡Pedido enviado! Se descontaron ${money(itemsTotal)} de tus puntos.`, 'success');
+            toast(`¡Pedido enviado! Se descontaron ${money(itemsTotal)} de tus puntos.${pickup ? ' Te avisamos cuando esté listo para recoger.' : ''}`, 'success');
         } else {
-            toast('¡Pedido enviado! Pagarás en efectivo al recibir.', 'success');
+            toast(pickup ? '¡Pedido enviado! Pagás en la tienda al recoger. Te avisamos cuando esté listo.' : '¡Pedido enviado! Pagarás en efectivo al recibir.', 'success');
         }
     } catch (e) {
         console.error(e);
@@ -5028,11 +5201,22 @@ function onMarketplaceClick(e) {
         return renderMarketplace();
     }
     if (action === 'pick-ride') {
-        const ride = t.getAttribute('data-ride') === 'auto' ? 'auto' : 'moto';
+        const raw = t.getAttribute('data-ride');
+        const ride = raw === 'pickup' ? 'pickup' : (raw === 'auto' ? 'auto' : 'moto');
+        checkoutPickup = ride === 'pickup';
         document.querySelectorAll('[data-stores-action="pick-ride"]').forEach((b) => {
             b.classList.toggle('is-on', b.getAttribute('data-ride') === ride);
         });
-        setCheckoutVehicle(ride);
+        // Recoger en tienda: se ocultan dirección y tarifa de envío y se muestra dónde queda la tienda.
+        document.getElementById('store-checkout-pickup-info')?.classList.toggle('hidden', !checkoutPickup);
+        document.getElementById('store-checkout-delivery-fields')?.classList.toggle('hidden', checkoutPickup);
+        const rl = document.getElementById('store-checkout-recipient-label');
+        if (rl) rl.textContent = checkoutPickup ? 'Quién recoge *' : 'Quién recibe *';
+        const pl = document.getElementById('store-checkout-phone-label');
+        if (pl) pl.textContent = checkoutPickup ? 'WhatsApp de quien recoge *' : 'WhatsApp de quien recibe *';
+        const sb = document.getElementById('store-checkout-submit');
+        if (sb) sb.textContent = checkoutPickup ? 'Elegir pago y pedir para recoger' : 'Elegir pago y enviar pedido';
+        if (!checkoutPickup) setCheckoutVehicle(ride);
         return;
     }
     if (action === 'place-order') return placeOrder();
@@ -7403,6 +7587,19 @@ async function onMerchantClick(e) {
     if (action === 'ready-order' && orderId) {
         const order = merchantOrders.find((o) => o.id === orderId);
         if (!order) return;
+        // El cliente pasa a recoger: solo se avisa que está listo, sin pedir repartidor.
+        if (isPickupOrder(order)) {
+            if (order.status === 'ready') return toast('Ya se avisó al cliente que está listo.', 'info');
+            if (order.status !== 'preparing') return toast('Primero marca «Preparando el pedido».', 'warning');
+            t.disabled = true;
+            try {
+                await setOrderStatus(orderId, 'ready', { readyAt: serverTimestamp(), deliveryStage: 'ready_for_pickup' });
+                toast('✅ Pedido listo · se avisó al cliente para que pase a recogerlo', 'success');
+            } finally {
+                t.disabled = false;
+            }
+            return;
+        }
         if (order.tripId) return toast('Ya se pidió un conductor para este pedido.', 'info');
         if (order.status !== 'preparing' && !(order.status === 'ready' && !order.tripId)) {
             return toast('Primero marca «Preparando el pedido» antes de llamar al delivery.', 'warning');
@@ -7489,6 +7686,14 @@ async function onMerchantClick(e) {
             storeName: order?.storeName || myStore?.name || 'Mi negocio',
             orderId
         });
+    }
+    if (action === 'pickup-delivered-order' && orderId) {
+        const order = merchantOrders.find((o) => o.id === orderId);
+        const who = order?.recipientName || order?.clientName || 'el cliente';
+        const cash = order?.paymentMethod !== 'saldo';
+        if (!window.confirm(`¿${who} ya recogió el pedido?${cash ? `\n\nRecuerda cobrarle ${money(order?.itemsTotal)} en efectivo.` : '\n\nYa está pagado con puntos: no cobres nada.'}`)) return;
+        await setOrderStatus(orderId, 'delivered', { deliveredAt: serverTimestamp(), deliveredBy: 'merchant_pickup', deliveryStage: 'picked_up' });
+        return toast('🤝 Pedido entregado al cliente', 'success');
     }
     if (action === 'delivered-order' && orderId) {
         if (!window.confirm('El pedido se marca entregado solo cuando el conductor termina el viaje. ¿Marcarlo entregado ahora?')) return;
