@@ -1327,6 +1327,9 @@ window.calculateTripRoute = async (options = {}) => {
 };
 
 window.addEventListener('map-route-trigger', () => {
+    // v121 · Quien dispara el evento y además calcula la ruta él mismo (pin del mapa) lo avisa
+    // con esta marca: antes la ruta se calculaba DOS veces seguidas (trabón + doble consulta a Google).
+    if (window._hrSkipRouteTriggerCalc) return;
     window.calculateTripRoute({ silent: true });
 });
 

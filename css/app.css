@@ -28324,3 +28324,7 @@ body.driver-mode #passenger-waiting-lock { display: none !important; }
     display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.55rem; border-radius: 9999px;
     background: #d1fae5; color: #047857; font-weight: 900; font-size: 0.7rem;
 }
+
+/* v121 — Elegir punto en el mapa: el botón «Abrir panel» no debe asomarse detrás de «Confirmar» */
+body.map-pick-mode #panel-expand-fab,
+body.map-pick-mode #driver-map-open { display: none !important; }

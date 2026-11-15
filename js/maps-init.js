@@ -2244,6 +2244,17 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 window.restorePanelAfterMapPick?.(saved);
                 window._mapPickPanelRestore = null;
 
+                // v121 · Dejar que la pantalla pinte el cierre del mapa ANTES del trabajo pesado
+                // (dirección, marcador, ruta y precio). Antes todo caía en el mismo instante del
+                // toque y el teléfono se quedaba congelado un momento al confirmar.
+                try { window.setTripRequestHint?.('Calculando ruta…'); } catch (_) {}
+                await new Promise((resolve) => {
+                    let settled = false;
+                    const go = () => { if (!settled) { settled = true; resolve(); } };
+                    try { requestAnimationFrame(() => setTimeout(go, 0)); } catch (_) { go(); }
+                    setTimeout(go, 120);
+                });
+
                 if (!sameCenter) {
                     geo = await window.reverseGeocodeLatLng(latLng);
                 }
