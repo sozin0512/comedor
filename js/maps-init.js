@@ -692,9 +692,14 @@
             // del área visible y con altura tope hasta el teclado.
             left = Math.round(vv.left + 12);
             width = Math.max(160, Math.round(vv.width - 24));
+            // v125 · Debajo de la barra de la hora / isla del iPhone (antes quedaba a 10 px del borde:
+            // el campo y la flecha «atrás» no se veían y la pantalla parecía en blanco y sin salida).
+            let safeTop = 0;
+            try { safeTop = Math.max(0, Number(window.readSearchSafeTopPx?.()) || 0); } catch (_) {}
+            const topPad = Math.max(gap, Math.min(safeTop, 64) + 4);
             return {
-                top: Math.round(vv.top + gap), bottom: null, left, width,
-                maxH: Math.max(140, Math.round(vv.height - gap * 2)), hasOwnInput: true, pinTop: true
+                top: Math.round(vv.top + topPad), bottom: null, left, width,
+                maxH: Math.max(140, Math.round(vv.height - topPad - gap)), hasOwnInput: true, pinTop: true
             };
         }
         if (compact) {
@@ -869,6 +874,20 @@
             || cls.includes('place-autocomplete-element-overlay')
             || cls.includes('full-window');
         const hasOwnInput = !!el.querySelector?.('input, .input-container');
+        // v125 · La lista que vive DENTRO del diálogo de Google (el que trae su propio campo) nunca es
+        // una capa a pantalla completa: va en flujo, debajo del campo. En iPhone, con 5 resultados la
+        // lista medía más del 45 % de la pantalla, se tomaba por capa completa y tapaba el campo.
+        let insideInputDialog = false;
+        try {
+            const dlg = el.localName !== 'dialog' ? el.closest?.('dialog') : null;
+            insideInputDialog = !!(dlg && dlg.querySelector?.('input, .input-container'));
+        } catch (_) {}
+        if (insideInputDialog) {
+            ['pointer-events', 'background', 'padding', 'overflow', 'box-shadow', 'border', 'visibility', 'opacity']
+                .forEach((prop) => { try { el.style.removeProperty(prop); } catch (_) {} });
+            stylePlacesDropdownCard(el);
+            return;
+        }
         if ((looksFull || isShellName) && inner && inner !== el && !hasOwnInput) {
             stylePlacesDropdownShell(el);
             stylePlacesDropdownCard(inner);
@@ -2771,6 +2790,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 // v.47: ya abierto → no repetir toda la tanda (antes cada tecla re-programaba 7 restilados completos)
                 if (active && document.body.classList.contains('trip-autocomplete-open') && window._hrTripAcOpenEl === el) return;
                 window._hrTripAcOpenEl = active ? el : null;
+                if (active) window._hrTripAcOpenedAt = Date.now();
                 document.body.classList.toggle('trip-autocomplete-open', active);
                 try {
                     const panel = document.getElementById('control-panel');
@@ -2903,6 +2923,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 document.addEventListener('click', (e) => {
                     try {
                         if (!document.body.classList.contains('trip-autocomplete-open')) return;
+                        // El mismo toque que abrió la búsqueda no debe cerrarla (el panel se mueve
+                        // bajo el dedo y el «click» puede caer en el hueco).
+                        if (Date.now() - (window._hrTripAcOpenedAt || 0) < 900) return;
                         const pnl = document.getElementById('control-panel');
                         const t = e.target;
                         if (!pnl || !t) return;
@@ -2927,6 +2950,12 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         const open = body.classList.contains('trip-autocomplete-open');
                         if (open) {
                             ensureDoneButton();
+                            // Con la ventana completa de Google abierta (Android) ya hay flecha «atrás»:
+                            // el botón sobra y además queda inactivo detrás de la ventana.
+                            try {
+                                const db = document.getElementById('hr-search-done-btn');
+                                if (db) db.hidden = !!(window.usePlacesFullWindowOverlay?.() && window.hrPlacesDialogIsOpen?.());
+                            } catch (_) {}
                             // iPhone: sin teclado en pantalla y sin escribir en los últimos 4 s → cerrar.
                             if (isIosWeb() && keyboardLooksClosed() && Date.now() - lastTypedAt > 4000) noKbTicks += 1;
                             else noKbTicks = 0;

@@ -28366,3 +28366,4 @@ body.trip-autocomplete-open .hr-search-done-btn {
     border: 0; border-radius: 0.9rem; background: #2563eb; color: #fff;
     font-weight: 900; font-size: 0.85rem; box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
 }
+.hr-search-done-btn[hidden] { display: none !important; }
