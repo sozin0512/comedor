@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Viaje a pantalla completa</title>
+    <link rel="stylesheet" href="../css/app.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        html, body { margin: 0; height: 100%; background: #c5d4b4; }
+        #map { position: absolute; inset: 0; background: #d5e2c4; }
+        #app-header, #ops-fleet-map-hud, #passenger-city-bar, #passenger-copa-active .chip {
+            position: absolute; z-index: 300; background: #fff; border-radius: 14px; padding: 8px 10px; font-weight: 800; font-size: 12px;
+        }
+        #app-header { top: 8px; left: 8px; right: 8px; }
+        #passenger-city-bar { top: 64px; left: 10px; }
+        #ops-fleet-map-hud { top: 64px; right: 10px; background: #0f172a; color: #fff; }
+        #passenger-copa-active { position: absolute; top: 110px; left: 10px; z-index: 27980; }
+        #passenger-copa-active .chip { background: #f59e0b; color: #fff; }
+        .suggest { display: none; position: fixed; left: 12px; right: 12px; bottom: 86px; z-index: 2147483000; background: #fff; border-radius: 16px; box-shadow: 0 12px 32px rgba(15,23,42,.18); }
+        body.show-suggest .suggest { display: block; }
+        body.show-suggest .kb { display: block; }
+        .kb { display: none; position: fixed; left: 0; right: 0; bottom: 0; height: 42px; background: #d1d5db; z-index: 2147482000; text-align: center; font-size: 11px; font-weight: 800; color: #475569; line-height: 42px; }
+        .row { display: flex; gap: 6px; margin: 8px 0; }
+        .chip { flex: 1; background: #fff; border: 1px solid #dbe4f0; border-radius: 12px; padding: 8px 4px; font-size: 11px; font-weight: 900; text-align: center; }
+        .field { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; margin: 8px 0; font-weight: 700; color: #64748b; }
+        .stop { background: #eff6ff; border-radius: 16px; padding: 12px; margin-top: 8px; color: #1d4ed8; font-weight: 900; }
+        .more { margin-top: 10px; background: #fff; border-radius: 16px; padding: 12px; font-weight: 900; }
+    </style>
+</head>
+<body class="client-mode passenger-mode-active passenger-mode-trip">
+    <div id="map"></div>
+    <header id="app-header">HonduRaite</header>
+    <div id="passenger-city-bar">Tegucigalpa</div>
+    <div id="ops-fleet-map-hud">Todos (179)</div>
+    <div id="passenger-copa-active"><div class="chip">COPA LIVE</div></div>
+    <div id="control-panel">
+        <p style="text-align:center;font-size:11px;font-weight:900;letter-spacing:.12em;color:#94a3b8;margin:0 0 8px">MINIMIZAR</p>
+        <div id="passenger-mode-bar">
+            <p class="passenger-mode-title">Viaje</p>
+            <p class="passenger-mode-sub">Moto · Taxi VIP · Taxi tradicional</p>
+        </div>
+        <div id="panel-content" style="padding:12px">
+            <p style="font-weight:900;margin:8px 0">1 ORIGEN Y DESTINO</p>
+            <div class="row">
+                <div class="chip">CASA</div><div class="chip">TRABAJO</div><div class="chip">PULPERÍA</div><div class="chip">GUARDAR</div>
+            </div>
+            <div class="field">2QMV+FJW</div>
+            <div class="field">Destino final</div>
+            <div class="stop">+ Agregar parada (desde L 15)</div>
+            <div class="more">2 MÁS OPCIONES</div>
+        </div>
+    </div>
+    <div class="suggest"><div style="padding:12px;font-weight:800">Academia Cristiana El Robledal</div><div style="padding:12px;font-weight:800;border-top:1px solid #e2e8f0">Daniel Christian School</div></div>
+    <div class="kb">teclado</div>
+    <script>
+        if (new URLSearchParams(location.search).get('suggest') === '1') document.body.classList.add('show-suggest');
+    </script>
+</body>
+</html>
