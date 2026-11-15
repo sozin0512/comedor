@@ -312,15 +312,12 @@ export function mountDriverVehicleWizard(host, options = {}) {
         const done = rows.filter((r) => docReady(r)).length;
         return `
             <h3 class="vw-q">Documentos</h3>
-            <p class="vw-hint">Una fila por documento. Código y foto, nítidos y vigentes.</p>
+            <p class="vw-hint">Tocá cada fila y tomá la foto. Con la foto basta.</p>
             ${rows.map((r) => {
                 const ready = docReady(r);
-                const code = r.codeKey
-                    ? `<label class="vw-code-label">${esc(r.codeLabel)}<input data-field="${esc(r.codeKey)}" value="${esc(state[r.codeKey] || '')}" placeholder="${esc(r.codeLabel)}"></label>`
-                    : '';
                 return `<div class="vw-doc ${ready ? 'is-done' : ''}">
-                    <button type="button" class="vw-doc-ico" data-photo="${esc(r.slot)}" aria-label="Tomar foto"><i class="fas fa-camera"></i></button>
-                    <div class="vw-doc-main"><strong>${esc(r.label)}</strong>${code}</div>
+                    <button type="button" class="vw-doc-ico" data-photo="${esc(r.slot)}" aria-label="Tomar foto de ${esc(r.label)}"><i class="fas fa-camera"></i></button>
+                    <div class="vw-doc-main"><strong>${esc(r.label)}</strong></div>
                     ${ready ? '<i class="fas fa-check-circle vw-ok"></i>' : `<button type="button" class="vw-photo-btn" data-photo="${esc(r.slot)}">Tomar foto</button>`}
                 </div>`;
             }).join('')}
@@ -329,9 +326,7 @@ export function mountDriverVehicleWizard(host, options = {}) {
     }
 
     function docReady(row) {
-        if (!state.photos[row.slot]) return false;
-        if (row.needsCode && !String(state[row.codeKey] || '').trim()) return false;
-        return true;
+        return !!state.photos[row.slot];
     }
 
     function faceGuideHtml() {
@@ -408,8 +403,7 @@ export function mountDriverVehicleWizard(host, options = {}) {
         if (step === 4) {
             const missing = documentRows().find((r) => !docReady(r));
             if (!missing) return '';
-            if (!state.photos[missing.slot]) return `Tomá la foto: ${missing.label}.`;
-            return `Escribí el código de ${missing.label}.`;
+            return `Tomá la foto: ${missing.label}.`;
         }
         if (!state.photos.face) return 'Tomá tu selfie, de frente y con luz.';
         if (!String(state.name || '').trim() || !String(state.phone || '').trim()) return 'Nombre y WhatsApp son obligatorios.';

@@ -4,6 +4,35 @@
  */
 const COMFORT_TOUCH = ['vehicleYear', 'hasAC', 'seats', 'suggestedCategory', 'vehicleCategoryConfirmed'];
 
+/** No borra números ya guardados si el envío nuevo solo trae las fotos. */
+function keepStoredDocumentCodes(patch, prev) {
+    const next = patch && typeof patch === 'object' ? { ...patch } : {};
+    const before = prev && typeof prev === 'object' ? prev : {};
+    const prevVehicle = before.vehicle && typeof before.vehicle === 'object' ? before.vehicle : {};
+    const prevDocs = before.documentsPhotos && typeof before.documentsPhotos === 'object' ? before.documentsPhotos : {};
+    const text = (value) => String(value ?? '').trim();
+    if (next.vehicle && typeof next.vehicle === 'object') {
+        const vehicle = { ...next.vehicle };
+        if (!text(vehicle.license) && text(prevVehicle.license)) vehicle.license = prevVehicle.license;
+        const prevInspection = text(prevVehicle.inspection);
+        const nextInspection = text(vehicle.inspection);
+        if ((!nextInspection || nextInspection === 'Sin especificar') && prevInspection && prevInspection !== 'Sin especificar') {
+            vehicle.inspection = prevVehicle.inspection;
+        }
+        next.vehicle = vehicle;
+    }
+    if (!text(next.license) && text(before.license || prevVehicle.license)) {
+        next.license = before.license || prevVehicle.license;
+    }
+    if (next.documentsPhotos && typeof next.documentsPhotos === 'object') {
+        const docs = { ...next.documentsPhotos };
+        if (!text(docs.penCode) && text(prevDocs.penCode)) docs.penCode = prevDocs.penCode;
+        if (!text(docs.policialesCode) && text(prevDocs.policialesCode)) docs.policialesCode = prevDocs.policialesCode;
+        next.documentsPhotos = docs;
+    }
+    return next;
+}
+
 function protectApprovedComfortPatch(patch, prev) {
     const next = patch && typeof patch === 'object' ? { ...patch } : {};
     const before = prev && typeof prev === 'object' ? prev : {};
@@ -34,4 +63,4 @@ function protectApprovedComfortPatch(patch, prev) {
     return next;
 }
 
-module.exports = { protectApprovedComfortPatch, COMFORT_TOUCH };
+module.exports = { protectApprovedComfortPatch, keepStoredDocumentCodes, COMFORT_TOUCH };

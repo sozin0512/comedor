@@ -256,11 +256,7 @@ export function registrationChecklist(state = {}, { now = new Date(), cutoffs } 
     const slots = vehiclePhotoSlots(type);
     const photosMissing = slots.filter((slot) => !state.photos?.[slot.slot]).map((slot) => slot.label);
     const docs = documentRows();
-    const docsMissing = docs.filter((row) => {
-        if (!state.photos?.[row.slot]) return true;
-        if (row.needsCode && !String(state[row.codeKey] || '').trim()) return true;
-        return false;
-    }).map((row) => row.label);
+    const docsMissing = docs.filter((row) => !state.photos?.[row.slot]).map((row) => row.label);
     const selfie = !!state.photos?.face;
     const model = composeVehicleModel(state);
     const year = Number(state.year);
@@ -309,13 +305,14 @@ export function registrationChecklist(state = {}, { now = new Date(), cutoffs } 
     };
 }
 
+/** Cada documento del asistente se completa con la foto. El número, si ya estaba guardado, no se pide ni se borra. */
 export function documentRows() {
     return [
-        { slot: 'licenseFront', label: 'Licencia — frente', codeKey: 'licenseNumber', codeLabel: 'N° de licencia', needsCode: true },
-        { slot: 'licenseBack', label: 'Licencia — revés', needsCode: false },
-        { slot: 'inspection', label: 'Revisión vehicular', codeKey: 'inspection', codeLabel: 'N° o fecha', needsCode: true },
-        { slot: 'antecedentes', label: 'Antecedentes penales', codeKey: 'penCode', codeLabel: 'Código', needsCode: true },
-        { slot: 'policiales', label: 'Antecedentes policiales', codeKey: 'policialesCode', codeLabel: 'Código', needsCode: true }
+        { slot: 'licenseFront', label: 'Licencia — frente' },
+        { slot: 'licenseBack', label: 'Licencia — revés' },
+        { slot: 'inspection', label: 'Revisión vehicular' },
+        { slot: 'antecedentes', label: 'Antecedentes penales' },
+        { slot: 'policiales', label: 'Antecedentes policiales' }
     ];
 }
 

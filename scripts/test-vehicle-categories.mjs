@@ -21,7 +21,7 @@ import {
 } from '../js/vehicle-categories.js';
 
 const require = createRequire(import.meta.url);
-const { protectApprovedComfortPatch } = require('../functions/vehicle-comfort.js');
+const { protectApprovedComfortPatch, keepStoredDocumentCodes } = require('../functions/vehicle-comfort.js');
 
 const now = new Date('2026-11-12T12:00:00Z');
 let failed = 0;
@@ -163,15 +163,30 @@ documentRows().forEach((row) => { fullPhotos[row.slot] = 'a'; });
 fullPhotos.face = 'a';
 const fullReport = registrationChecklist({
     ...partial,
-    inspection: 'RV-2026',
-    penCode: 'PEN-1',
-    policialesCode: 'POL-1',
+    licenseNumber: '',
+    inspection: '',
+    penCode: '',
+    policialesCode: '',
     photos: fullPhotos
 }, { now });
 eq('borrador completo: 6 fotos', fullReport.photosDone, 6);
 eq('borrador completo: 5 documentos', fullReport.docsDone, 5);
-eq('borrador completo sí se envía', fullReport.canSubmit, true);
+eq('la foto basta, sin números', fullReport.canSubmit, true);
 ok('el resumen completo dice 5/5', fullReport.lines.some((line) => line.text === 'Documentos: 5/5'));
+
+const kept = keepStoredDocumentCodes({
+    vehicle: { model: 'Toyota Corolla', license: '', inspection: 'Sin especificar' },
+    documentsPhotos: { licenseFront: 'nueva', penCode: '', policialesCode: '' }
+}, {
+    license: 'L-100',
+    vehicle: { license: 'L-100', inspection: 'RV-2019' },
+    documentsPhotos: { penCode: 'PEN-9', policialesCode: 'POL-3', licenseFront: 'vieja' }
+});
+eq('no borra el número de licencia', kept.vehicle.license, 'L-100');
+eq('no borra la revisión guardada', kept.vehicle.inspection, 'RV-2019');
+eq('no borra el código penal', kept.documentsPhotos.penCode, 'PEN-9');
+eq('no borra el código policial', kept.documentsPhotos.policialesCode, 'POL-3');
+eq('sí guarda la foto nueva', kept.documentsPhotos.licenseFront, 'nueva');
 
 if (failed) {
     console.error(`${failed} pruebas fallaron`);

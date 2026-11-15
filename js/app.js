@@ -3205,11 +3205,24 @@ function fillLegacyDriverForm(collected) {
     window.selectDriverVehicleType?.(collected.type || 'auto');
     set('car-model', collected.modelText || '');
     set('car-plate', collected.plate || '');
-    set('driver-license', collected.licenseNumber || '');
-    set('vehicle-inspection', collected.inspection || '');
     set('vehicle-cargo-capacity', collected.cargo || '');
-    set('pen-code', collected.penCode || '');
-    set('policiales-code', collected.policialesCode || '');
+    const prevProfile = window.userProfile || {};
+    const prevVehicle = prevProfile.vehicle || {};
+    const prevDocs = prevProfile.documentsPhotos || {};
+    const keepField = (id, incoming, ...previous) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const typed = String(incoming || '').trim();
+        if (typed) { el.value = typed; return; }
+        for (const prev of previous) {
+            const saved = String(prev ?? '').trim();
+            if (saved && saved !== 'Sin especificar') { el.value = saved; return; }
+        }
+    };
+    keepField('driver-license', collected.licenseNumber, prevVehicle.license, prevProfile.license);
+    keepField('vehicle-inspection', collected.inspection, prevVehicle.inspection, prevProfile.inspection);
+    keepField('pen-code', collected.penCode, prevDocs.penCode);
+    keepField('policiales-code', collected.policialesCode, prevDocs.policialesCode);
     set('full-name', collected.name || '');
     set('phone-number', collected.phone || '');
     set('emergency-contact-setup', collected.emergency || '');
@@ -29814,13 +29827,28 @@ window.saveProfileChanges = async () => {
 
         async function uploadVehicleAssetsFromForm(uid, vehicleId, vehicleType) {
             const basePath = `artifacts/${appId}/users/${uid}/vehicles/${vehicleId}`;
+            const prevVehicle = window.userProfile?.vehicle || {};
+            const prevDocs = window.userProfile?.documentsPhotos || {};
+            const kept = (typed, ...previous) => {
+                const next = String(typed || '').trim();
+                if (next) return next;
+                for (const prev of previous) {
+                    const saved = String(prev ?? '').trim();
+                    if (saved) return saved;
+                }
+                return '';
+            };
+            const license = kept(document.getElementById('driver-license')?.value, prevVehicle.license, window.userProfile?.license);
+            const inspection = kept(document.getElementById('vehicle-inspection')?.value, prevVehicle.inspection, window.userProfile?.inspection) || 'Sin especificar';
+            const penCode = kept(document.getElementById('pen-code')?.value, prevDocs.penCode);
+            const policialesCode = kept(document.getElementById('policiales-code')?.value, prevDocs.policialesCode);
             const assets = {
                 vehicle: {
                     model: document.getElementById('car-model').value.trim(),
                     plate: document.getElementById('car-plate').value.trim(),
-                    license: document.getElementById('driver-license').value.trim(),
-                    inspection: document.getElementById('vehicle-inspection').value.trim() || 'Sin especificar',
-                    cargoCapacity: document.getElementById('vehicle-cargo-capacity')?.value.trim() || null,
+                    ...(license ? { license } : {}),
+                    inspection,
+                    cargoCapacity: document.getElementById('vehicle-cargo-capacity')?.value.trim() || prevVehicle.cargoCapacity || null,
                     type: vehicleType
                 },
                 vehiclePhotos: {
@@ -29834,8 +29862,8 @@ window.saveProfileChanges = async () => {
                     inspection: await resolvePhotoUrl(storage, inspectionPhoto, `${basePath}/docs/inspection.jpg`),
                     antecedentes: await resolvePhotoUrl(storage, antecedentesPenalesPhoto, `${basePath}/docs/antecedentes.jpg`),
                     policiales: await resolvePhotoUrl(storage, policialesPhoto, `${basePath}/docs/policiales.jpg`),
-                    penCode: document.getElementById('pen-code')?.value.trim() || '',
-                    policialesCode: document.getElementById('policiales-code')?.value.trim() || ''
+                    ...(penCode ? { penCode } : {}),
+                    ...(policialesCode ? { policialesCode } : {})
                 }
             };
             if (vehicleType === 'moto' && helmetPhotoBase64) {
@@ -47123,6 +47151,21 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
             `;
         };
 
+        const legacyDocumentCodesHtml = (u) => {
+            const docs = u?.documentsPhotos || {};
+            const vehicle = u?.vehicle || {};
+            const bits = [];
+            const lic = String(vehicle.license || u?.license || '').trim();
+            const insp = String(vehicle.inspection || u?.inspection || '').trim();
+            if (lic) bits.push(`Licencia n° ${lic}`);
+            if (insp && insp !== 'Sin especificar' && insp !== 'N/D') bits.push(`Revisión ${insp}`);
+            if (String(docs.penCode || '').trim()) bits.push(`PEN ${String(docs.penCode).trim()}`);
+            if (String(docs.policialesCode || '').trim()) bits.push(`Policial ${String(docs.policialesCode).trim()}`);
+            if (!bits.length) return '';
+            const safe = bits.map((bit) => String(bit).replace(/&/g, '&amp;').replace(/</g, '&lt;')).join(' · ');
+            return `<p class="text-[10px] text-gray-300 mt-2">${safe}</p>`;
+        };
+
         const renderPendingVerificationCard = (u, role) => {
             const age = u.birthDate ? calculateAge(u.birthDate) : null;
             const ageBadge = age != null
@@ -47238,6 +47281,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                             ${window.createPhotoThumb(u.documentsPhotos?.antecedentes || u.antecedentesPhoto || ph.antecedentes, 'Antecedentes PEN', u.name, 'antecedentes')}
                             ${window.createPhotoThumb(u.documentsPhotos?.policiales || u.policialesPhoto || ph.policiales, 'Policiales', u.name, 'policiales')}
                         </div>
+                        ${legacyDocumentCodesHtml(u)}
                     </div>
                     <div class="flex flex-wrap gap-2 mt-4">
                         <button onclick="window.approveDriver('${u.uid}', this${pendingVehArg})" class="flex-1 min-w-[100px] bg-emerald-600 text-white font-black py-2.5 rounded-xl text-xs uppercase">${u._isAdditionalVehiclePending ? '✓ Aprobar vehículo' : '✓ Aprobar'}</button>

@@ -7,7 +7,7 @@ const { getFirestore, FieldValue, FieldPath, Timestamp } = require('firebase-adm
 const { getMessaging } = require('firebase-admin/messaging');
 const crypto = require('crypto');
 const schedCopy = require('./scheduled-trip-driver-ui');
-const { protectApprovedComfortPatch } = require('./vehicle-comfort');
+const { protectApprovedComfortPatch, keepStoredDocumentCodes } = require('./vehicle-comfort');
 const waitingLock = require('./scheduled-trip-client-lock');
 
 initializeApp();
@@ -811,7 +811,7 @@ exports.registerUserProfile = onCall(async (request) => {
     if (prev.termsAccepted === true && prev.privacyAccepted === true && patch.termsAccepted === false) {
         for (const k of ['termsAccepted', 'termsAcceptedAt', 'privacyAccepted', 'privacyAcceptedAt', 'privacyPolicyVersion']) delete patch[k];
     }
-    const safePatch = protectApprovedComfortPatch(patch, prev);
+    const safePatch = protectApprovedComfortPatch(keepStoredDocumentCodes(patch, prev), prev);
     await pubRef.set(safePatch, { merge: true });
     await privRef.set(safePatch, { merge: true });
 

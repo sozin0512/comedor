@@ -217,8 +217,7 @@ function buildSteps() {
                 type === 'taxi'
                     ? '<b>Placa T-</b> oficial. Sin esa placa no operas como taxi tradicional'
                     : '<b>Placa</b> tal como está en el vehículo',
-                '<b>N° de licencia de conducir</b>',
-                '<b>Revisión vehicular de Honduras</b> (número o fecha)',
+                '<b>Licencia y revisión:</b> solo la foto, nítida',
                 (type === 'paila' || type === 'camion' || type === 'grua')
                     ? '<b>Capacidad de carga</b> obligatoria (toneladas, varas, remolque…)'
                     : 'Capacidad de carga: solo paila, camión o grúa'
@@ -247,8 +246,8 @@ function buildSteps() {
             ${li([
                 '<b>Licencia:</b> 2 fotos, frente (anverso) y revés (reverso)',
                 '<b>Revisión vehicular de Honduras:</b> foto del documento',
-                add ? 'Antecedentes: ya quedaron en tu primer registro' : '<b>Antecedentes penales (PEN):</b> código + foto del certificado',
-                add ? '' : '<b>Antecedentes policiales:</b> código + foto del certificado'
+                add ? 'Antecedentes: ya quedaron en tu primer registro' : '<b>Antecedentes penales (PEN):</b> foto del certificado',
+                add ? '' : '<b>Antecedentes policiales:</b> foto del certificado'
             ].filter(Boolean))}
             <p class="drv-guide-note">Si se lee mal, el supervisor lo rechaza y tienes que volver a subir.</p>`
     });
