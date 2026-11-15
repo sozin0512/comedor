@@ -9,7 +9,7 @@
 import { haversineKm, findZoneForCoords, findNearestZone, getZoneById } from './zones.js?v=2026.10.25.4';
 import {
     normalizeServiceType, isFreightService, isTowService,
-    setServiceRateOverrides, getDefaultServiceRates,
+    setServiceRateOverrides, getDefaultServiceRates, SERVICE_RATE_IDS,
     setSpecialRateOverrides, getDefaultSpecialRates, SPECIAL_RATE_IDS, SPECIAL_RATE_FIELDS,
 } from './service-types.js?v=2026.10.26.118';
 
@@ -38,6 +38,10 @@ export const DEFAULT_FIXED_FARES_CONFIG = {
         taxi: { base: 30, perKm: 20 },
         moto: { base: 20, perKm: 18 },
         delivery: { base: 15, perKm: 17 },
+        economico: { base: 37, perKm: 22 },
+        confort: { base: 37, perKm: 22 },
+        familiar: { base: 37, perKm: 22 },
+        vip: { base: 37, perKm: 22 },
     },
     places: [
         {
@@ -271,7 +275,7 @@ export function normalizeFixedFaresConfig(raw) {
     /** Si el admin aún tiene el km de fábrica viejo, aplicar el +10 LPS. */
     const LEGACY_KM = { auto: 12, taxi: 10, moto: 8, delivery: 7 };
     const serviceRates = {};
-    ['auto', 'taxi', 'moto', 'delivery'].forEach((id) => {
+    SERVICE_RATE_IDS.forEach((id) => {
         const d = defRates[id] || { base: 0, perKm: 0 };
         const o = srcRates[id] || {};
         let perKm = Math.max(0, toNum(o.perKm, d.perKm));

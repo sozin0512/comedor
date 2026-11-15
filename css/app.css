@@ -2692,6 +2692,16 @@
         body.android-gesture.booking-primary-visible .booking-float-layer {
             bottom: calc(8px + 4.25rem + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
         }
+        /* Categorías dentro de Taxi VIP: una fila, junto al botón, sin empujarlo abajo. */
+        body.ride-cat-dock-on.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 8.4rem + max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
+        body.android-3btn.ride-cat-dock-on.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 8.4rem + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+        }
+        body.android-gesture.ride-cat-dock-on.booking-primary-visible .booking-float-layer {
+            bottom: calc(8px + 8.4rem + max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+        }
         body.booking-primary-visible #fare-request-btn {
             display: none;
         }
@@ -27565,6 +27575,18 @@ html[data-theme="dark"] .extra-stop-sheet-close { background: #1e293b; border-co
 #passenger-home-hub.hrh .hrh-circles button { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: none; border: 0; font-weight: 800; font-size: 0.74rem; color: var(--hn); }
 #passenger-home-hub.hrh .hrh-circles i { width: 3.4rem; height: 3.4rem; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #fff;
   background: radial-gradient(circle at 30% 25%, #4f9bff, var(--hb) 55%, var(--hn2)); box-shadow: 0 8px 18px rgba(30,107,214,.35); border: 2px solid rgba(255,255,255,.6); }
+#passenger-home-hub.hrh .hrh-circles .hrh-on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--hb), 0 8px 18px rgba(30,107,214,.35); }
+.hrh-vip-cats { display: flex; flex-wrap: nowrap; gap: 0.35rem; overflow-x: auto; overscroll-behavior-x: contain; margin: 0 0 0.45rem; scrollbar-width: none; }
+.hrh-vip-cats::-webkit-scrollbar { display: none; }
+.hrh-vip-cats[hidden] { display: none !important; }
+.hrh-vip-cats button { flex: 1 0 4.4rem; display: flex; flex-direction: column; align-items: center; gap: 0.22rem; background: none; border: 0; font-weight: 800; font-size: 0.68rem; color: #0a1f44; padding: 0; }
+.hrh-vip-cats i { width: 3.05rem; height: 3.05rem; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; color: #fff;
+  background: radial-gradient(circle at 30% 25%, #4f9bff, #1e6bd6 55%, #123a7a); box-shadow: 0 8px 18px rgba(30,107,214,.35); border: 2px solid rgba(255,255,255,.6); }
+.hrh-vip-cats .hrh-on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1e6bd6, 0 8px 18px rgba(30,107,214,.35); }
+.hrh-vip-cats .hrh-off { opacity: .45; }
+.hrh-vip-cats .hrh-off i { background: #94a3b8 !important; box-shadow: none !important; }
+#booking-primary-dock .hrh-vip-cats { margin: 0 0 0.35rem; }
+#booking-primary-dock .hrh-vip-cats i { width: 2.45rem; height: 2.45rem; border-radius: 13px; font-size: 0.95rem; }
 #passenger-home-hub.hrh .hrh-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 0.5rem !important; }
 #passenger-home-hub.hrh .hrh-tile { grid-column: auto !important; flex-direction: row !important; justify-content: flex-start !important; text-align: left !important; gap: 0.6rem !important;
   min-height: 3.9rem; padding: 0.6rem !important; border-radius: 16px !important; background: #fff !important; border: 1px solid #dbe4f0 !important; box-shadow: 0 6px 16px rgba(30,107,214,.1) !important; }
