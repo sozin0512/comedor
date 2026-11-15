@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Categorías de viaje</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        html, body { margin: 0; background: #e8eef5; font-family: Inter, system-ui, sans-serif; }
+        .phone { max-width: 390px; margin: 0 auto; background: #f8fafc; min-height: 100vh; padding: 16px 12px 28px; box-sizing: border-box; }
+        .picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
+        .trip-service-chip {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 0.15rem; min-height: 2.85rem; padding: 0.45rem 0.2rem; border-radius: 0.85rem;
+            border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.58rem; font-weight: 900;
+            letter-spacing: 0.02em; text-transform: uppercase; color: #64748b;
+        }
+        .trip-service-chip i { font-size: 1rem; }
+        .trip-service-chip.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+        .trip-service-chip.is-unavailable { opacity: 0.42; filter: grayscale(0.85); }
+        .dock { margin-top: 18px; }
+        .dock button { width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: #2563eb; color: #fff; font-weight: 900; }
+        h2 { font-size: 15px; margin: 0 0 10px; }
+        .offer { background: #fff; border-radius: 16px; padding: 14px; border: 1px solid #e2e8f0; }
+        .offer b { color: #1d4ed8; }
+        .admin { background: #0f172a; color: #e2e8f0; border-radius: 16px; padding: 12px; }
+        .admin h3 { color: #7dd3fc; font-size: 13px; margin: 0 0 8px; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .card { background: rgba(2,6,23,.4); border: 1px solid rgba(51,65,85,.6); border-radius: 12px; padding: 8px; }
+        .card p { margin: 0 0 6px; font-size: 11px; font-weight: 900; color: #fff; }
+        .row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 10px; color: #94a3b8; font-weight: 700; }
+        .row input { flex: 1; background: #1e293b; color: #fff; border: 1px solid #334155; border-radius: 8px; min-height: 32px; text-align: center; font-weight: 900; }
+        .ex { color: #7dd3fc; font-size: 10px; font-weight: 700; margin: 4px 0 0; }
+    </style>
+</head>
+<body>
+<div class="phone" id="root"></div>
+<script>
+const screen = new URLSearchParams(location.search).get('screen') || 'grey';
+const cats = [
+    ['moto', 'Moto', 'fa-motorcycle'],
+    ['economico', 'Raite Económico', 'fa-car'],
+    ['confort', 'Raite Confort', 'fa-car-side'],
+    ['familiar', 'Raite Familiar', 'fa-users'],
+    ['vip', 'Raite VIP', 'fa-crown']
+];
+function chips(flags, selected) {
+    return `<h2>¿Qué raite querés?</h2><div class="picker">` + cats.map(([id, label, icon]) => {
+        const off = flags[id] === false;
+        const on = selected === id;
+        return `<button type="button" class="trip-service-chip${on ? ' active' : ''}${off ? ' is-unavailable' : ''}"><i class="fas ${icon}"></i><span>${label}</span></button>`;
+    }).join('') + `</div><div class="dock"><button type="button">Pedir viaje</button></div>`;
+}
+const root = document.getElementById('root');
+if (screen === 'grey') {
+    root.innerHTML = chips({ moto: true, economico: true, confort: false, familiar: true, vip: false }, 'economico');
+} else if (screen === 'all') {
+    root.innerHTML = chips({ moto: true, economico: true, confort: true, familiar: true, vip: true }, 'economico');
+} else if (screen === 'familiar') {
+    root.innerHTML = chips({ moto: true, economico: true, confort: true, familiar: true, vip: true }, 'familiar');
+} else if (screen === 'driver') {
+    root.innerHTML = `<div class="offer"><p style="margin:0 0 6px;font-size:12px;font-weight:900;color:#64748b">NUEVO VIAJE</p><p style="margin:0 0 8px;font-size:18px;font-weight:900">L. 147.00</p><p style="margin:0 0 6px"><b><i class="fas fa-tag"></i> Raite Familiar</b></p><p style="margin:0;font-size:13px;font-weight:700">Comayagua centro → Palmerola</p><p style="margin:8px 0 0;font-size:12px;color:#b45309;font-weight:900"><i class="fas fa-users"></i> 4 PERSONAS van en este viaje</p><div class="dock"><button>Aceptar</button></div></div>`;
+} else if (screen === 'admin') {
+    const rows = [
+        ['Taxi VIP', 37, 22], ['Taxi tradicional', 30, 20], ['Moto', 20, 18], ['Envío', 15, 17],
+        ['Raite Económico', 37, 22], ['Raite Confort', 40, 24], ['Raite Familiar', 45, 26], ['Raite VIP', 55, 30]
+    ];
+    root.innerHTML = `<div class="admin"><h3>Precio base y por kilómetro</h3><p style="font-size:10px;color:#94a3b8;font-weight:700">Fórmula: base + (km × precio/km)</p><div class="grid">${rows.map(([n,b,k]) => `<div class="card"><p>${n}</p><div class="row"><span>Base L.</span><input value="${b}"></div><div class="row"><span>Por km L.</span><input value="${k}"></div><p class="ex">Ejemplo 5 km: L. ${b + 5 * k}</p></div>`).join('')}</div></div>`;
+}
+</script>
+</body>
+</html>

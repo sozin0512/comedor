@@ -5237,10 +5237,22 @@
         }
 
         .trip-service-chip.active[data-service-type="auto"],
-        #svc-btn-auto.trip-service-chip.active {
+        #svc-btn-auto.trip-service-chip.active,
+        .ride-cat-chip.active {
             border-color: #2563eb !important;
             background: #eff6ff !important;
             color: #1d4ed8 !important;
+        }
+
+        .ride-cat-chip { display: none; }
+        body.passenger-mode-trip .ride-cat-chip,
+        body[data-passenger-mode="trip"] .ride-cat-chip { display: flex; }
+        body.passenger-mode-trip #svc-btn-auto,
+        body[data-passenger-mode="trip"] #svc-btn-auto { display: none !important; }
+        .ride-cat-chip.is-unavailable {
+            opacity: 0.42;
+            filter: grayscale(0.85);
+            pointer-events: none;
         }
 
         .trip-service-chip.active[data-service-type="taxi"],

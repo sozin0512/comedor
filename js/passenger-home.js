@@ -634,6 +634,8 @@ function applyMode(mode) {
     document.body.classList.toggle('passenger-mode-home', mode === 'home');
     document.body.classList.toggle('passenger-mode-active', mode !== 'home');
     document.body.classList.toggle('passenger-mode-trip', mode === 'trip');
+    if (mode === 'trip') window.ensureDefaultRideCategory?.();
+    else window.currentRideCategory = null;
     document.body.classList.toggle('passenger-mode-delivery', mode === 'delivery');
     document.body.classList.toggle('passenger-mode-freight', mode === 'freight');
     document.body.classList.toggle('passenger-mode-tow', mode === 'tow');

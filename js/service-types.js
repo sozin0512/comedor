@@ -6,6 +6,7 @@ import {
     US_EXTRA_PASSENGER_FEE,
     US_FREIGHT_HELPER_FEE,
 } from './market.js';
+import { categoryRate, driverQualifiesForCategory, isRideCategory } from './ride-category-offer.js';
 
 export const MOTO_CAMPAIGN = {
     title: 'Moto Segura HonduRaite',
@@ -180,11 +181,28 @@ export function getServiceRateOverrides() {
 }
 
 /** Tarifas por defecto (sin override admin). */
+export const SERVICE_RATE_IDS = ['auto', 'taxi', 'moto', 'delivery', 'economico', 'confort', 'familiar', 'vip'];
+
+export const SERVICE_RATE_LABELS = {
+    auto: 'Taxi VIP',
+    taxi: 'Taxi tradicional',
+    moto: 'Moto',
+    delivery: 'Envío',
+    economico: 'Raite Económico',
+    confort: 'Raite Confort',
+    familiar: 'Raite Familiar',
+    vip: 'Raite VIP'
+};
+
 export function getDefaultServiceRates() {
     const out = {};
     ['auto', 'taxi', 'moto', 'delivery'].forEach((id) => {
         const m = SERVICE_TYPE_META[id];
         if (m) out[id] = { base: m.base, perKm: m.perKm };
+    });
+    const car = out.auto || { base: 37, perKm: 22 };
+    ['economico', 'confort', 'familiar', 'vip'].forEach((id) => {
+        out[id] = { base: car.base, perKm: car.perKm };
     });
     return out;
 }
@@ -383,7 +401,18 @@ export function calculateServiceFare(type, km, conditions = null, passengersOrOp
         return calculateTowFare(type, km, {}, conditions).total;
     }
     const distance = Math.max(0, parseFloat(km) || 0);
-    let fare = meta.base + distance * meta.perKm;
+    let rideCategory = null;
+    if (passengersOrOpts && typeof passengersOrOpts === 'object' && passengersOrOpts.rideCategory) {
+        rideCategory = passengersOrOpts.rideCategory;
+    }
+    let base = meta.base;
+    let perKm = meta.perKm;
+    if (isRideCategory(rideCategory)) {
+        const rate = categoryRate(currentServiceRates(), rideCategory);
+        base = rate.base;
+        perKm = rate.perKm;
+    }
+    let fare = base + distance * perKm;
     if (conditions) fare = applyRouteConditionAdjustments(fare, conditions);
     let passengers = 1;
     if (typeof passengersOrOpts === 'number') passengers = passengersOrOpts;
@@ -875,6 +904,16 @@ export function driverCanServeTrip(driverVehicleType, tripServiceType, vehiclePl
     const driverRaw = (driverVehicleType || 'auto').toLowerCase();
     const tripRaw = normalizeServiceType(tripServiceType);
     const plate = (vehiclePlate || '').trim();
+    if (trip?.rideCategory && isRideCategory(trip.rideCategory)) {
+        let driver = { vehicleType: driverRaw };
+        try {
+            if (typeof window !== 'undefined' && window.userProfile) {
+                driver = { ...window.userProfile, vehicleType: driverRaw || window.userProfile.vehicleType };
+            }
+        } catch (_) {}
+        const cutoffs = (typeof window !== 'undefined' && window.__hrRideCutoffs) || null;
+        if (!driverQualifiesForCategory(driver, trip.rideCategory, cutoffs)) return false;
+    }
 
     // VIP / Taxi VIP category: trips requested as VIP (auto) should only be taken by drivers with VIP vehicle
     const isVipTrip = (tripRaw === 'auto' || tripRaw === 'vip' || tripRaw === 'taxi_vip');

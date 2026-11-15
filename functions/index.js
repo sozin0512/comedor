@@ -8,6 +8,7 @@ const { getMessaging } = require('firebase-admin/messaging');
 const crypto = require('crypto');
 const schedCopy = require('./scheduled-trip-driver-ui');
 const { protectApprovedComfortPatch, keepStoredDocumentCodes } = require('./vehicle-comfort');
+const { driverQualifiesForCategory, quoteCategoryFare } = require('./ride-category-offer');
 const waitingLock = require('./scheduled-trip-client-lock');
 
 initializeApp();
@@ -966,6 +967,13 @@ exports.validateTripCreation = onCall(async (request) => {
         }
     }
 
+    let categoryFareQuote = null;
+    if (trip.rideCategory) {
+        const rates = settings.fixedFares?.serviceRates || null;
+        const km = Number(trip.tripDistanceKm || trip.distanceKm || 0);
+        categoryFareQuote = quoteCategoryFare(rates, trip.rideCategory, km);
+    }
+
     if (!termsAccepted || !privacyAccepted) {
         return {
             ok: true,
@@ -976,7 +984,8 @@ exports.validateTripCreation = onCall(async (request) => {
             chargeAmount,
             paymentMethod,
             saldoOk,
-            saldoWarning
+            saldoWarning,
+            categoryFareQuote
         };
     }
 
@@ -988,7 +997,8 @@ exports.validateTripCreation = onCall(async (request) => {
         chargeAmount,
         paymentMethod,
         saldoOk,
-        saldoWarning
+        saldoWarning,
+        categoryFareQuote
     };
 });
 
@@ -1181,6 +1191,18 @@ exports.acceptDriverTrip = onCall(async (request) => {
     }
     if (trip.driverId && trip.driverId !== uid) {
         throw new HttpsError('failed-precondition', 'Otro conductor ya tomó este viaje.');
+    }
+    if (trip.rideCategory) {
+        const driverSnap = await pubRef.get();
+        const driver = driverSnap.exists ? (driverSnap.data() || {}) : {};
+        let cutoffs = null;
+        try {
+            const cutSnap = await db.doc(`artifacts/${APP_ID}/public/data/appSettings/rideCategories`).get();
+            cutoffs = cutSnap.exists ? cutSnap.data() : null;
+        } catch (_) {}
+        if (!driverQualifiesForCategory(driver, trip.rideCategory, cutoffs)) {
+            throw new HttpsError('failed-precondition', 'Tu vehículo no entra en esta categoría. Podés tomar Raite Económico.');
+        }
     }
     // Staff armó viaje: el cliente debe reclamarlo antes de que un conductor lo acepte
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) {
@@ -3776,6 +3798,13 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
         : requiredRideVehicleType(serviceType);
     // Pedido de tienda: avisar a motos y a Taxi VIP (antes solo motos).
     const requiredTypes = isStoreDeliveryTrip(trip) ? requiredVehicleTypesForTrip(trip) : [requiredType];
+    let rideCutoffs = null;
+    if (trip.rideCategory) {
+        try {
+            const cutSnap = await db.doc(`artifacts/${appId}/public/data/appSettings/rideCategories`).get();
+            rideCutoffs = cutSnap.exists ? cutSnap.data() : null;
+        } catch (_) {}
+    }
 
     const tripZone = resolveTripZoneId(trip);
     const tripDept = getDepartmentForZone(tripZone);
@@ -3854,6 +3883,14 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
 
         if (closedAppOnly && isDriverOnline(loc)) continue;
         if (requiredType && !requiredTypes.some((rt) => driverCanReceiveTripAlert(u, loc, rt))) {
+            skipVehicle += 1;
+            continue;
+        }
+        if (trip.rideCategory && !driverQualifiesForCategory(
+            { ...u, vehicleType: loc.vehicleType || u.vehicleType },
+            trip.rideCategory,
+            rideCutoffs
+        )) {
             skipVehicle += 1;
             continue;
         }
