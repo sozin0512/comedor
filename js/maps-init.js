@@ -2864,12 +2864,76 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         return tag === 'gmp-place-autocomplete' || tag === 'gmp-basic-place-autocomplete';
                     } catch (_) { return false; }
                 };
+                // v124 · En iPhone el modo búsqueda deja el panel arriba con un hueco blanco para la lista
+                // y el teclado. Si el teclado se cierra (o nunca abre) esa pantalla parecía trabada y
+                // sin salida. Ahora: botón «Listo» siempre a la vista, tocar el hueco blanco cierra,
+                // y si no hay teclado ni se está escribiendo, se cierra sola.
+                let noKbTicks = 0;
+                let lastTypedAt = 0;
+                const closeSearchMode = () => {
+                    idleTicks = 0; noKbTicks = 0;
+                    try { window.hideTripKeyboard?.(); } catch (_) {}
+                    const pnl = document.getElementById('control-panel');
+                    pnl?.classList.remove('trip-autocomplete-open');
+                    document.body?.classList.remove('trip-autocomplete-open');
+                    clearControlPanelSearchInline(pnl);
+                };
+                window.hrCloseTripSearchMode = closeSearchMode;
+                const markTyped = (e) => {
+                    try {
+                        if (e.target?.closest?.('gmp-place-autocomplete, gmp-basic-place-autocomplete, .trip-origin-wrap, .trip-dest-wrap, .trip-extra-stop-wrap')) lastTypedAt = Date.now();
+                    } catch (_) {}
+                };
+                document.addEventListener('input', markTyped, true);
+                document.addEventListener('keydown', markTyped, true);
+                const ensureDoneButton = () => {
+                    if (document.getElementById('hr-search-done-btn')) return;
+                    const dest = document.getElementById('destination-autocomplete');
+                    const card = dest?.closest?.('section, .trip-step-card') || dest?.parentElement?.parentElement;
+                    if (!card?.parentElement) return;
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.id = 'hr-search-done-btn';
+                    btn.className = 'hr-search-done-btn';
+                    btn.textContent = '✓ Listo · cerrar búsqueda';
+                    btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); closeSearchMode(); });
+                    card.insertAdjacentElement('afterend', btn);
+                };
+                // Tocar el hueco blanco del panel (fuera de los campos y de la lista) cierra la búsqueda.
+                document.addEventListener('click', (e) => {
+                    try {
+                        if (!document.body.classList.contains('trip-autocomplete-open')) return;
+                        const pnl = document.getElementById('control-panel');
+                        const t = e.target;
+                        if (!pnl || !t) return;
+                        const blank = t === pnl || t.id === 'panel-content' || t.classList?.contains('trip-step-card') || t.localName === 'section';
+                        if (blank && pnl.contains(t)) closeSearchMode();
+                    } catch (_) {}
+                }, true);
+                const keyboardLooksClosed = () => {
+                    const vv = window.visualViewport;
+                    if (!vv) return false;
+                    const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
+                    return layoutH > 0 && (layoutH - vv.height - (vv.offsetTop || 0)) < 90;
+                };
+                const isIosWeb = () => !(typeof window.isHrNativeAndroid === 'function' && window.isHrNativeAndroid())
+                    && (/iP(hone|ad|od)/.test(navigator.userAgent || '')
+                        || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1));
                 const check = () => {
                     try {
                         const body = document.body;
                         const panel = document.getElementById('control-panel');
                         if (!body || !panel) return;
                         const open = body.classList.contains('trip-autocomplete-open');
+                        if (open) {
+                            ensureDoneButton();
+                            // iPhone: sin teclado en pantalla y sin escribir en los últimos 4 s → cerrar.
+                            if (isIosWeb() && keyboardLooksClosed() && Date.now() - lastTypedAt > 4000) noKbTicks += 1;
+                            else noKbTicks = 0;
+                            if (noKbTicks >= 4) { closeSearchMode(); return; }
+                        } else {
+                            noKbTicks = 0;
+                        }
                         if (!open) {
                             idleTicks = 0;
                             if (panel.style.getPropertyPriority('top') === 'important'
