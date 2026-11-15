@@ -6,18 +6,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&display=swap" rel="stylesheet">
     <style>
+        *, *::before, *::after { box-sizing: border-box; }
         html, body { margin: 0; background: #d7e3c8; font-family: Inter, system-ui, sans-serif; }
-        .phone { width: 412px; min-height: 915px; margin: 0 auto; box-sizing: border-box; padding: 72px 12px 24px; }
-        .panel { background: #fff; border-radius: 22px; padding: 12px 12px 14px; box-shadow: 0 16px 40px rgba(15,23,42,.18); }
+        .phone { width: 100%; max-width: 412px; min-height: 915px; margin: 0 auto; box-sizing: border-box; padding: 72px 12px 24px; }
+        .panel { box-sizing: border-box; width: 100%; background: #fff; border-radius: 22px; padding: 14px 12px 14px; box-shadow: 0 16px 40px rgba(15,23,42,.18); }
         .head { display: flex; align-items: center; justify-content: space-between; color: #94a3b8; font-size: 11px; font-weight: 900; letter-spacing: .08em; }
         .head button { border: 0; background: none; color: #94a3b8; font-size: 20px; }
-        .pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
-        .pill { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 38px; border-radius: 999px; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; font-size: 9px; font-weight: 900; letter-spacing: .02em; }
+        .pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; min-width: 0; margin: 10px 0 0; padding: 8px 0 0; }
+        .pill { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-width: 0; max-width: 100%; min-height: 38px; margin: 0; padding: 0 6px; border-radius: 999px; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; font-size: 9px; font-weight: 900; letter-spacing: .01em; }
         .pill.on { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
         .pill.off { background: #f8fafc; color: #94a3b8; border-style: dashed; }
-        .badge { position: absolute; top: -8px; right: 4px; background: #e2e8f0; color: #64748b; font-size: 8px; font-weight: 900; border-radius: 999px; padding: 2px 5px; letter-spacing: .04em; }
-        .sub { margin: 14px 2px 4px; font-size: 15px; font-weight: 800; color: #334155; }
-        .card { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 11px 12px; margin-top: 8px; color: #0f172a; }
+        .badge { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 4px); box-sizing: border-box; background: #e2e8f0; color: #64748b; font-size: 8px; font-weight: 900; border-radius: 999px; padding: 2px 5px; letter-spacing: .03em; white-space: nowrap; }
+        .sub { margin: 14px 0 4px; font-size: 15px; font-weight: 800; color: #334155; }
+        .card { box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; max-width: 100%; min-width: 0; margin: 8px 0 0; text-align: left; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 11px 12px; color: #0f172a; }
         .card.on { border-color: #2563eb; background: #eff6ff; }
         .card.dash { border-style: dashed; background: #f8fafc; color: #64748b; }
         .ico { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; font-size: 16px; }
@@ -31,7 +32,7 @@
         .price { text-align: right; }
         .price b { display: block; font-size: 15px; font-weight: 900; }
         .price small { display: block; font-size: 10px; color: #94a3b8; font-weight: 700; }
-        .go { margin-top: 12px; width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: linear-gradient(145deg, #1d4ed8, #2563eb); color: #fff; font-weight: 900; font-size: 15px; letter-spacing: .04em; }
+        .go { box-sizing: border-box; margin: 12px 0 0; width: 100%; max-width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: linear-gradient(145deg, #1d4ed8, #2563eb); color: #fff; font-weight: 900; font-size: 15px; letter-spacing: .04em; }
     </style>
 </head>
 <body>
