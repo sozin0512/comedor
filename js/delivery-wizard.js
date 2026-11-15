@@ -325,6 +325,7 @@ function showStepError(step, message) {
 }
 
 function applyTransition(next) {
+    try { hidePlaceSuggest(); } catch (_) {}
     wizardState = { open: next.open, completed: next.completed };
     showStepError(next.open, next.error);
     renderDeliveryWizard({ focus: !next.error, reveal: true });
@@ -380,9 +381,198 @@ function onWizardFocusIn(event) {
     scrollIntoScroller(field);
 }
 
+/* ───────── v123 · Sugerencias de negocios al escribir el lugar de recogida ─────────
+ * Al escribir «pizza», «Campero», etc. se listan negocios cercanos (Google Places). Al tocar uno,
+ * su nombre queda como lugar y su ubicación como ORIGEN del envío.
+ * Costo cuidado: mínimo 3 letras, espera de 450 ms entre teclas y una sola «sesión» de Google por
+ * búsqueda (se cierra al elegir). Solo se piden ubicación y dirección (campos básicos).
+ */
+const PLACE_TYPES = {
+    comida: ['restaurant', 'cafe', 'bakery', 'meal_takeaway', 'fast_food_restaurant'],
+    pulperia: ['convenience_store', 'grocery_store', 'supermarket'],
+    farmacia: ['pharmacy', 'drugstore'],
+};
+const placeSuggest = { timer: null, seq: 0, token: null, items: [], lib: null, typesOk: true };
+
+function placeSuggestBox() {
+    const input = document.getElementById('delivery-restaurant');
+    if (!input) return null;
+    let box = document.getElementById('dw-place-suggest');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'dw-place-suggest';
+        box.className = 'dw-suggest hidden';
+        box.setAttribute('role', 'listbox');
+        input.insertAdjacentElement('afterend', box);
+    }
+    return box;
+}
+
+function hidePlaceSuggest() {
+    clearTimeout(placeSuggest.timer);
+    placeSuggest.seq += 1;
+    placeSuggest.items = [];
+    const box = document.getElementById('dw-place-suggest');
+    if (box) { box.classList.add('hidden'); box.replaceChildren(); }
+}
+
+function placeSearchCenter() {
+    const pick = (p) => {
+        const lat = Number(p?.lat); const lng = Number(p?.lng);
+        return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0) ? { lat, lng } : null;
+    };
+    try {
+        return pick(document.getElementById('origin-autocomplete')?._routeEndpoint?.latLng)
+            || pick(window._passengerLastGps)
+            || pick(window.currentDriverPos)
+            || (window.gMap?.getCenter ? pick({ lat: window.gMap.getCenter().lat(), lng: window.gMap.getCenter().lng() }) : null);
+    } catch (_) { return null; }
+}
+
+async function fetchPlaceSuggestions(text, category) {
+    if (typeof google === 'undefined' || !google.maps?.importLibrary) return [];
+    const lib = placeSuggest.lib || (placeSuggest.lib = await google.maps.importLibrary('places'));
+    const Suggestion = lib.AutocompleteSuggestion;
+    if (!Suggestion?.fetchAutocompleteSuggestions) return [];
+    if (!placeSuggest.token && lib.AutocompleteSessionToken) placeSuggest.token = new lib.AutocompleteSessionToken();
+    const req = { input: text, includedRegionCodes: ['hn'], language: 'es' };
+    if (placeSuggest.token) req.sessionToken = placeSuggest.token;
+    const center = placeSearchCenter();
+    if (center) req.locationBias = { center, radius: 25000 };
+    const types = PLACE_TYPES[category];
+    let res;
+    if (types && placeSuggest.typesOk) {
+        try {
+            res = await Suggestion.fetchAutocompleteSuggestions({ ...req, includedPrimaryTypes: types });
+        } catch (_) {
+            placeSuggest.typesOk = false; // Google no aceptó el filtro por tipo: buscar sin filtro
+        }
+    }
+    if (!res) res = await Suggestion.fetchAutocompleteSuggestions(req);
+    return (res?.suggestions || []).slice(0, 5).map((s) => {
+        const p = s.placePrediction;
+        const main = p?.mainText?.toString?.() || p?.text?.toString?.() || '';
+        const secondary = p?.secondaryText?.toString?.() || '';
+        return main ? { main, secondary, prediction: p } : null;
+    }).filter(Boolean);
+}
+
+function paintPlaceSuggest(items) {
+    const box = placeSuggestBox();
+    if (!box) return;
+    placeSuggest.items = items;
+    box.replaceChildren();
+    if (!items.length) { box.classList.add('hidden'); return; }
+    const head = document.createElement('p');
+    head.className = 'dw-suggest-head';
+    head.textContent = 'Toca el negocio para usarlo como punto de recogida';
+    box.appendChild(head);
+    items.forEach((it, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dw-suggest-item';
+        btn.setAttribute('role', 'option');
+        btn.dataset.dwSuggest = String(idx);
+        const a = document.createElement('b');
+        a.textContent = it.main;
+        const b = document.createElement('small');
+        b.textContent = it.secondary;
+        btn.append(a, b);
+        box.appendChild(btn);
+    });
+    box.classList.remove('hidden');
+    scrollIntoScroller(box);
+}
+
+function onPlaceInput() {
+    const input = document.getElementById('delivery-restaurant');
+    if (!input) return;
+    const text = input.value.trim();
+    clearTimeout(placeSuggest.timer);
+    if (text.length < 3) { hidePlaceSuggest(); return; }
+    const seq = ++placeSuggest.seq;
+    placeSuggest.timer = setTimeout(async () => {
+        try {
+            const category = document.getElementById('delivery-category')?.value || '';
+            const items = await fetchPlaceSuggestions(text, category);
+            if (seq !== placeSuggest.seq) return;
+            paintPlaceSuggest(items);
+        } catch (e) {
+            if (seq === placeSuggest.seq) hidePlaceSuggest();
+            console.warn('[envio] sugerencias de lugar', e?.message || e);
+        }
+    }, 450);
+}
+
+async function choosePlaceSuggestion(idx) {
+    const it = placeSuggest.items[idx];
+    const input = document.getElementById('delivery-restaurant');
+    if (!it || !input) return;
+    input.value = it.main;
+    hidePlaceSuggest();
+    try { input.blur(); } catch (_) {}
+    let geo = null;
+    try {
+        const place = it.prediction?.toPlace?.();
+        if (place) {
+            await place.fetchFields({ fields: ['location', 'formattedAddress'] });
+            const lat = place.location?.lat?.(); const lng = place.location?.lng?.();
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                const formatted = place.formattedAddress || it.secondary || '';
+                geo = {
+                    address: formatted ? `${it.main} • ${formatted}` : it.main,
+                    placeName: it.main,
+                    formattedAddress: formatted || null,
+                    latLng: { lat, lng },
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('[envio] detalle del lugar', e?.message || e);
+    }
+    placeSuggest.token = null; // la sesión de Google termina al elegir
+    if (geo && typeof window.applyOriginFromMapPick === 'function') {
+        try {
+            await window.applyOriginFromMapPick(geo);
+            window.showToast?.(`Recogemos en ${it.main}. Quedó como origen.`, 'success');
+        } catch (e) {
+            console.warn('[envio] origen desde lugar', e?.message || e);
+        }
+    } else {
+        window.showToast?.('No se pudo ubicar ese negocio. Pon la dirección en Origen.', 'warning');
+    }
+    applyTransition(advanceDeliveryWizard(wizardState, readDeliveryWizardValues()));
+}
+
+function bindPlaceSuggest() {
+    const input = document.getElementById('delivery-restaurant');
+    if (!input || input.dataset.dwSuggestBound === '1') return;
+    input.dataset.dwSuggestBound = '1';
+    input.setAttribute('autocomplete', 'off');
+    input.addEventListener('input', onPlaceInput);
+    const box = placeSuggestBox();
+    // Mientras el dedo está sobre la lista no se cierra al perder el foco el campo; se elige con el
+    // toque completo (click), así deslizar el panel sobre la lista no elige nada por accidente.
+    box?.addEventListener('pointerdown', () => { placeSuggest.touching = true; });
+    const release = () => setTimeout(() => { placeSuggest.touching = false; }, 500);
+    box?.addEventListener('pointerup', release);
+    box?.addEventListener('pointercancel', release);
+    box?.addEventListener('click', (e) => {
+        const btn = e.target.closest?.('[data-dw-suggest]');
+        if (!btn) return;
+        e.preventDefault();
+        placeSuggest.touching = false;
+        choosePlaceSuggestion(Number(btn.dataset.dwSuggest));
+    });
+    input.addEventListener('blur', () => setTimeout(() => {
+        if (document.activeElement !== input && !placeSuggest.touching) hidePlaceSuggest();
+    }, 300));
+}
+
 export function mountDeliveryWizard() {
     if (typeof document === 'undefined') return;
     const root = wizardRoot();
+    try { bindPlaceSuggest(); } catch (_) {}
     if (!root || wizardBound) {
         renderDeliveryWizard();
         return;

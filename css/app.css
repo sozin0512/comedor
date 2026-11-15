@@ -28337,3 +28337,24 @@ body.map-pick-mode #driver-map-open { display: none !important; }
     box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
 }
 .delivery-cat-chip[aria-pressed="true"] i { color: #ffffff !important; }
+
+/* v123 — Envíos: sugerencias de negocios al escribir el lugar de recogida */
+.dw-suggest {
+    margin-top: 0.4rem; border: 1.5px solid #fcd34d; border-radius: 0.9rem; background: #fff;
+    overflow: hidden; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+.dw-suggest.hidden { display: none; }
+.dw-suggest-head {
+    margin: 0; padding: 0.4rem 0.75rem; font-size: 0.64rem; font-weight: 800; color: #92400e; background: #fffbeb;
+}
+.dw-suggest-item {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem; width: 100%;
+    padding: 0.6rem 0.75rem; border: 0; border-top: 1px solid #f1f5f9; background: #fff; text-align: left;
+    min-height: 2.9rem; cursor: pointer;
+}
+.dw-suggest-item:active { background: #fef3c7; }
+.dw-suggest-item b { font-size: 0.85rem; font-weight: 800; color: #0f172a; }
+.dw-suggest-item small { font-size: 0.68rem; font-weight: 600; color: #64748b; }
+html[data-theme="dark"] .dw-suggest, html[data-theme="dark"] .dw-suggest-item { background: #0f172a; border-color: #b45309; }
+html[data-theme="dark"] .dw-suggest-item b { color: #f8fafc; }
+html[data-theme="dark"] .dw-suggest-head { background: #1e293b; color: #fcd34d; }
