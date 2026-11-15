@@ -7,7 +7,11 @@ import {
     driverQualifiesForCategory,
     categoryAvailability,
     quoteCategoryFare,
-    driverRideCategory
+    driverRideCategory,
+    registeredCardFlags,
+    rideCardIsOff,
+    firstSelectableCard,
+    rideCategoryLabel
 } from '../js/ride-category-offer.js';
 
 const require = createRequire(import.meta.url);
@@ -62,6 +66,18 @@ eq('servidor: sin datos no es confort', server.driverQualifiesForCategory(sinDat
 eq('servidor: económico para todo Taxi VIP', server.driverQualifiesForCategory(sinDatos, 'economico'), true);
 eq('servidor: taxi tradicional no', server.driverQualifiesForCategory(taxi, 'economico'), false);
 eq('servidor: familiar', server.driverQualifiesForCategory(familiar, 'familiar'), true);
+eq('la corona se muestra como Premium', rideCategoryLabel('vip'), 'Premium');
+const flagsCiudad = registeredCardFlags({ moto: 2, car: 4, confort: 1, familiar: 0, vip: 0 });
+eq('sin familiar registrado', flagsCiudad.familiar, false);
+eq('sin premium registrado', flagsCiudad.vip, false);
+eq('económico si hay carros', flagsCiudad.economico, true);
+eq('taxi vip si hay carros', flagsCiudad.taxi_vip, true);
+eq('familiar gris sin registro', rideCardIsOff('familiar', { registeredFlags: flagsCiudad, registeredKnown: true }), true);
+eq('premium gris sin registro', rideCardIsOff('vip', { registeredFlags: flagsCiudad, registeredKnown: true }), true);
+eq('confort gris si nadie está en línea', rideCardIsOff('confort', {
+    registeredFlags: flagsCiudad, registeredKnown: true, onlineKnown: true, onlineFlags: { confort: false }
+}), true);
+eq('primera disponible salta el gris', firstSelectableCard(['familiar', 'vip', 'economico'], (id) => id !== 'economico'), 'economico');
 
 if (failed) {
     console.error(`${failed} pruebas fallaron`);

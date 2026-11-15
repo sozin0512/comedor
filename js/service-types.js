@@ -191,7 +191,7 @@ export const SERVICE_RATE_LABELS = {
     economico: 'Raite Económico',
     confort: 'Raite Confort',
     familiar: 'Raite Familiar',
-    vip: 'Raite VIP'
+    vip: 'Premium'
 };
 
 export function getDefaultServiceRates() {

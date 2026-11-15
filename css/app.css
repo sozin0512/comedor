@@ -5260,6 +5260,134 @@
             color: #a16207 !important;
         }
 
+        /* Panel «Elige el tipo»: pastillas + tarjetas blancas (viaje de pasajeros). */
+        body.passenger-mode-trip #service-type-picker.trip-service-picker,
+        body[data-passenger-mode="trip"] #service-type-picker.trip-service-picker {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        body.passenger-mode-trip #service-type-picker .trip-service-chip,
+        body[data-passenger-mode="trip"] #service-type-picker .trip-service-chip {
+            position: relative;
+            box-sizing: border-box;
+            flex-direction: row;
+            gap: 0.28rem;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            margin: 0;
+            min-height: 2.35rem;
+            padding: 0.35rem 0.4rem;
+            border-radius: 999px;
+            background: #fff;
+            border: 1.5px solid #e2e8f0;
+            color: #64748b;
+            font-size: 0.58rem;
+            letter-spacing: 0.01em;
+        }
+        body.passenger-mode-trip #svc-btn-moto.trip-service-chip.active,
+        body.passenger-mode-trip #svc-btn-auto.trip-service-chip.active,
+        body[data-passenger-mode="trip"] #svc-btn-moto.trip-service-chip.active,
+        body[data-passenger-mode="trip"] #svc-btn-auto.trip-service-chip.active {
+            border-color: #2563eb !important;
+            background: #eff6ff !important;
+            color: #1d4ed8 !important;
+        }
+        .svc-no-badge {
+            display: none;
+            position: absolute;
+            top: -0.55rem;
+            left: 50%;
+            right: auto;
+            transform: translateX(-50%);
+            max-width: calc(100% - 4px);
+            box-sizing: border-box;
+            background: #e2e8f0;
+            color: #64748b;
+            font-size: 0.48rem;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border-radius: 999px;
+            padding: 0.12rem 0.32rem;
+            line-height: 1;
+        }
+        body.passenger-mode-trip #svc-btn-taxi.hr-svc-unavailable .svc-no-badge,
+        body.passenger-mode-trip #svc-btn-taxi.is-city-off .svc-no-badge,
+        body[data-passenger-mode="trip"] #svc-btn-taxi.hr-svc-unavailable .svc-no-badge,
+        body[data-passenger-mode="trip"] #svc-btn-taxi.is-city-off .svc-no-badge {
+            display: block;
+        }
+        body.passenger-mode-trip #svc-btn-taxi.hr-svc-unavailable,
+        body.passenger-mode-trip #svc-btn-taxi.is-city-off,
+        body[data-passenger-mode="trip"] #svc-btn-taxi.hr-svc-unavailable,
+        body[data-passenger-mode="trip"] #svc-btn-taxi.is-city-off {
+            opacity: 1;
+            background: #f8fafc !important;
+            color: #94a3b8 !important;
+            border-style: dashed !important;
+        }
+        #ride-options,
+        #ride-options-list,
+        .trip-service-adder,
+        .trip-ride-options {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+        .ride-vehicle-card {
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            margin: 0.45rem 0 0;
+            text-align: left;
+            background: #fff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 0.7rem 0.75rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            color: #0f172a;
+        }
+        .ride-vehicle-card.is-selected {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+        .ride-vehicle-card.is-off {
+            opacity: 0.45;
+            filter: grayscale(0.4);
+        }
+        .ride-vehicle-card.is-dashed {
+            border-style: dashed;
+            background: #f8fafc;
+            color: #64748b;
+            cursor: default;
+        }
+        .ride-vehicle-ico {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            font-size: 1.05rem;
+        }
+        .ride-vehicle-ico--violet { background: #ede9fe; color: #7c3aed; }
+        .ride-vehicle-ico--blue { background: #dbeafe; color: #2563eb; }
+        .ride-vehicle-ico--sky { background: #e0f2fe; color: #0284c7; }
+        .ride-vehicle-ico--rose { background: #ffe4e6; color: #e11d48; }
+        .ride-vehicle-copy { flex: 1; min-width: 0; }
+        .ride-vehicle-copy strong { display: block; font-size: 0.92rem; font-weight: 900; }
+        .ride-vehicle-copy small { display: block; font-size: 0.72rem; color: #64748b; font-weight: 700; }
+        .ride-vehicle-card.is-dashed .ride-vehicle-copy strong { font-size: 0.82rem; color: #334155; }
+        .ride-vehicle-price { text-align: right; flex: 0 0 auto; }
+        .ride-vehicle-price b { display: block; font-size: 0.95rem; font-weight: 900; }
+        .ride-vehicle-price small { display: block; font-size: 0.62rem; color: #94a3b8; font-weight: 700; }
+
         .trip-client-flow {
             display: flex;
             flex-direction: column;

@@ -12,8 +12,11 @@ export const RIDE_CATEGORY_LABELS = {
     economico: 'Raite Económico',
     confort: 'Raite Confort',
     familiar: 'Raite Familiar',
-    vip: 'Raite VIP'
+    vip: 'Premium'
 };
+
+/** Tarjetas del pasajero, en el orden de la lista. La clave vip no cambia. */
+export const RIDE_CARD_IDS = ['moto', 'economico', 'taxi_vip', 'confort', 'familiar', 'vip'];
 
 /** Igual a la tarifa actual de Taxi VIP / Moto, hasta que el admin las cambie. */
 export const RIDE_CATEGORY_RATE_DEFAULTS = {
@@ -109,6 +112,45 @@ export function categoryAvailability(drivers, cutoffs, { known = true } = {}) {
         out[id] = (drivers || []).some((driver) => driverQualifiesForCategory(driver, id, cutoffs));
     }
     return out;
+}
+
+/**
+ * Conductores aprobados y registrados en la ciudad.
+ * Económico y Taxi VIP comparten el conteo de carros (auto / vip / taxi_vip).
+ */
+export function registeredCardFlags(counts, { known = true } = {}) {
+    if (!known || !counts) return null;
+    const car = Number(counts.car) > 0;
+    return {
+        moto: Number(counts.moto) > 0,
+        economico: car,
+        taxi_vip: car,
+        confort: Number(counts.confort) > 0,
+        familiar: Number(counts.familiar) > 0,
+        vip: Number(counts.vip) > 0
+    };
+}
+
+/**
+ * Gris si no hay conductor aprobado en la ciudad.
+ * En línea es una señal de más para Moto, Confort, Familiar y Premium.
+ */
+export function rideCardIsOff(id, {
+    registeredFlags = null,
+    registeredKnown = false,
+    onlineFlags = null,
+    onlineKnown = false,
+    cityBlocked = false
+} = {}) {
+    if (cityBlocked) return true;
+    if (registeredKnown && registeredFlags && registeredFlags[id] === false) return true;
+    const onlineExtra = id === 'moto' || id === 'confort' || id === 'familiar' || id === 'vip';
+    if (onlineExtra && onlineKnown && onlineFlags && onlineFlags[id] === false) return true;
+    return false;
+}
+
+export function firstSelectableCard(ids, isOff) {
+    return (ids || []).find((id) => !isOff(id)) || null;
 }
 
 export function rideCategoryPresenceFields(profile) {

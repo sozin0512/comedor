@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.128";
+} from "./auth-credentials.js?v=2026.10.26.129";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
-    arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
+    arrayUnion, getDocs, getCountFromServer, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.128";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.128";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.129";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.129";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.128";
+} from "./market.js?v=2026.10.26.129";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.128";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.128";
+} from "./phone-utils.js?v=2026.10.26.129";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.129";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.128";
+} from "./referrals.js?v=2026.10.26.129";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.128";
+} from "./zones.js?v=2026.10.26.129";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.128";
+} from "./trip-notifications.js?v=2026.10.26.129";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.128";
+} from "./notification-tones.js?v=2026.10.26.129";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.128";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.129";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.128";
+} from "./passenger-alerts.js?v=2026.10.26.129";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.128";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.128";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.128";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.128";
+} from "./passenger-verification.js?v=2026.10.26.129";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.129";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.129";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.129";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.128";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.129";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.128";
+} from "./feedback.js?v=2026.10.26.129";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.128";
+} from "./greetings.js?v=2026.10.26.129";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -149,10 +149,11 @@ import {
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG,
     SERVICE_RATE_IDS, SERVICE_RATE_LABELS
-} from "./service-types.js?v=2026.10.26.128";
+} from "./service-types.js?v=2026.10.26.129";
 import {
-    rideCategoryLabel, categoryAvailability, rideCategoryPresenceFields, RIDE_CATEGORY_IDS
-} from "./ride-category-offer.js?v=2026.10.26.128";
+    rideCategoryLabel, categoryAvailability, rideCategoryPresenceFields, RIDE_CATEGORY_IDS,
+    registeredCardFlags, rideCardIsOff, firstSelectableCard, RIDE_CARD_IDS
+} from "./ride-category-offer.js?v=2026.10.26.129";
 import {
     bookingPrimaryAction,
     serviceStepCopy,
@@ -162,8 +163,8 @@ import {
     shouldQuoteRouteNow,
     scrollDeltaToReveal,
 } from "./booking-primary-action.mjs?v=2026.10.26.104";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.128";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.128";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.129";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.129";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -188,23 +189,23 @@ import {
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml,
     usesTimedExclusiveOffer
-} from "./store-delivery-rotation.js?v=2026.10.26.128";
+} from "./store-delivery-rotation.js?v=2026.10.26.129";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.128";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.129";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.128";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.128";
+} from "./service-availability.js?v=2026.10.26.129";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.129";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.128";
+} from "./trip-wait.js?v=2026.10.26.129";
 import {
     scheduledForMs as schedUiMs,
     formatClock as schedFormatClock,
@@ -226,12 +227,12 @@ import {
     companionVisibility as schedCompanionVisibility,
     isLocking as schedIsLocking,
     ANDROID_NAV as SCHED_ANDROID_NAV
-} from "./scheduled-trip-driver-ui.js?v=2026.10.26.128";
+} from "./scheduled-trip-driver-ui.js?v=2026.10.26.129";
 import {
     isWaitingScheduledTrip,
     pickWaitingScheduledTrip,
     WAITING_LOCK_TOAST
-} from "./scheduled-trip-client-lock.js?v=2026.10.26.128";
+} from "./scheduled-trip-client-lock.js?v=2026.10.26.129";
 import "./passenger-waiting-lock.js?v=2026.10.26.104";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
@@ -249,55 +250,55 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
-} from "./driver-vehicles-v2.js?v=2026.10.26.128";
-import { comfortReviewHtml, normalizeCutoffs } from "./vehicle-categories.js?v=2026.10.26.128";
+} from "./driver-vehicles-v2.js?v=2026.10.26.129";
+import { comfortReviewHtml, normalizeCutoffs } from "./vehicle-categories.js?v=2026.10.26.129";
 import {
     openDriverVehicleWizard, closeDriverVehicleWizard, maybeShowVehicleUpdateNotice,
     renderRideCutoffAdmin, readRideCutoffForm, ensureCss as ensureVehicleWizardCss,
     buildApprovedComfortPatch
-} from "./driver-vehicle-wizard.js?v=2026.10.26.128";
+} from "./driver-vehicle-wizard.js?v=2026.10.26.129";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.128";
+} from "./route-fixed-fares.js?v=2026.10.26.129";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.128";
+} from "./commission-free-day.js?v=2026.10.26.129";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.128";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.128";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.128";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.128";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.128";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.128";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.128";
+} from "./route-conditions.js?v=2026.10.26.129";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.129";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.129";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.129";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.129";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.129";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.129";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.128";
+} from "./demand-heatmap.js?v=2026.10.26.129";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.128";
+} from "./ops-fleet-map.js?v=2026.10.26.129";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.128";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.128";
+} from "./live-trip-keepalive.js?v=2026.10.26.129";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.129";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.128";
+} from "./driver-session.js?v=2026.10.26.129";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -306,7 +307,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.128";
+} from "./session-keepalive.js?v=2026.10.26.129";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -396,32 +397,32 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.128";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.129";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.128";
+} from "./auth-ui.js?v=2026.10.26.129";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.128";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.128";
+} from "./age-verification.js?v=2026.10.26.129";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.129";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.128";
-import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.128";
-import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.128";
+} from "./trip-experience.js?v=2026.10.26.129";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.129";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.129";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.128";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.128";
+} from "./support-tickets.js?v=2026.10.26.129";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.129";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.128";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.128";
-import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.128";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.129";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.129";
+import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.129";
 
 // ==================== CONFIRMACIÓN IN-APP (reemplaza window.confirm nativo) ====================
 // En el APK (Android WebView) el confirm() nativo bloquea el hilo JS y a veces se queda pegado.
@@ -7135,6 +7136,9 @@ if (document.readyState === 'loading') {
 
             if (showRideCards) {
                 if (rideOptions) rideOptions.classList.remove('hidden');
+                if (document.body.classList.contains('passenger-mode-trip')) {
+                    window.setServiceAdderOpen?.(true);
+                }
                 document.getElementById('trip-instructions')?.classList.add('hidden');
                 const panelContent = document.getElementById('panel-content');
                 if (panelContent) panelContent.scrollTop = 0;
@@ -7450,6 +7454,88 @@ if (document.readyState === 'loading') {
                 h.appendChild(b);
             }
         };
+        const RIDE_SUPPLY_TTL_MS = 2 * 60 * 1000;
+        async function loadRideSupply(zoneId) {
+            const city = String(zoneId || '').trim();
+            if (!city || !db || !appId) return null;
+            const cached = window.__hrRideSupply;
+            if (cached && cached.zoneId === city && Date.now() - cached.at < RIDE_SUPPLY_TTL_MS) return cached.counts;
+            if (window.__hrRideSupplyFlight?.zoneId === city) return window.__hrRideSupplyFlight.promise;
+            const promise = (async () => {
+                const base = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+                const countOf = async (extras) => {
+                    const snap = await getCountFromServer(query(
+                        base,
+                        where('role', '==', 'driver'),
+                        where('approvalStatus', '==', 'approved'),
+                        where('serviceZoneId', '==', city),
+                        ...extras
+                    ));
+                    return Number(snap.data().count) || 0;
+                };
+                const carTypes = ['auto', 'vip', 'taxi_vip'];
+                const [moto, ...carParts] = await Promise.all([
+                    countOf([where('vehicleType', '==', 'moto')]),
+                    ...carTypes.map((type) => countOf([where('vehicleType', '==', type)])),
+                ]);
+                const [confort, familiar, vip] = await Promise.all([
+                    countOf([where('suggestedCategory', '==', 'confort'), where('vehicleType', 'in', carTypes)]),
+                    countOf([where('suggestedCategory', '==', 'familiar'), where('vehicleType', 'in', carTypes)]),
+                    countOf([where('suggestedCategory', '==', 'vip'), where('vehicleType', 'in', carTypes)]),
+                ]);
+                const counts = { moto, car: carParts.reduce((sum, n) => sum + n, 0), confort, familiar, vip };
+                window.__hrRideSupply = { zoneId: city, at: Date.now(), counts, known: true };
+                return counts;
+            })().catch((err) => {
+                console.warn('loadRideSupply', err?.message || err);
+                return null;
+            });
+            window.__hrRideSupplyFlight = { zoneId: city, promise };
+            try { return await promise; }
+            finally {
+                if (window.__hrRideSupplyFlight?.promise === promise) window.__hrRideSupplyFlight = null;
+            }
+        }
+
+        function taxiTradicionalOff(zoneId, zoneName = '') {
+            const id = String(zoneId || '').toLowerCase();
+            const name = String(zoneName || '').toLowerCase();
+            if (id === 'tegucigalpa' || name.includes('tegucigalpa')) return true;
+            return !!isServiceTypeDisabledInCity('taxi', zoneId);
+        }
+        function paintTaxiPill(off) {
+            const btn = document.getElementById('svc-btn-taxi');
+            if (!btn) return;
+            btn.classList.toggle('hr-svc-unavailable', !!off);
+            btn.classList.toggle('is-city-off', !!off);
+            btn.setAttribute('aria-disabled', off ? 'true' : 'false');
+        }
+        window.selectRidePick = (id, { route = null } = {}) => {
+            const map = {
+                moto: { service: 'moto', category: 'moto' },
+                economico: { service: 'auto', category: 'economico' },
+                taxi_vip: { service: 'auto', category: null },
+                confort: { service: 'auto', category: 'confort' },
+                familiar: { service: 'auto', category: 'familiar' },
+                vip: { service: 'auto', category: 'vip' },
+            };
+            const spec = map[id];
+            if (!spec) return;
+            window.currentRidePick = id;
+            window.currentRideCategory = spec.category;
+            window._hrHomePreferredService = spec.service;
+            window.selectServiceType?.(spec.service, {
+                confirmStep: false,
+                keepFareVisible: true,
+                keepRideCategory: true
+            });
+            const useRoute = route || window.currentRouteData;
+            if (useRoute) window.syncFareCardFromRoute?.(useRoute, { scroll: false });
+            window.renderRideOptions?.(useRoute, { syncFare: false });
+            window.syncServiceCardSummary?.();
+            window.syncBookingPrimaryAction?.();
+        };
+
         window.showRideOptionsCalculating = () => {
             const list = document.getElementById('ride-options-list');
             if (!list) return;
@@ -7475,118 +7561,116 @@ if (document.readyState === 'loading') {
                 return;
             }
 
-            let types = filterTypesForMarket(['moto', 'auto', 'taxi']); // no delivery for hourly
-
-            // Tipos que no se pueden pedir: se muestran en gris CON el motivo (no desaparecen).
-            const unavailableRows = [];
-            // Restricción Decreto 91-2012 para pasajeros hombres en moto (viajes, no delivery). No aplica en EE. UU.
-            if (isMalePassengerMotoRideBlocked() && types.includes('moto')) {
-                types = types.filter(t => t !== 'moto');
-                unavailableRows.push({ type: 'moto', msg: 'Moto no disponible para ti: ' + DECRETO_91_2012_MSG + '.' });
-            }
-
-            // Admin: taxi normal (y otros) deshabilitados en la ciudad activa
-            {
-                const zoneId = window.activeServiceZoneId || getDefaultZoneId();
-                const zoneName = getZoneById(zoneId)?.name || '';
-                types = types.filter((t) => {
-                    if (!isServiceTypeDisabledInCity(t, zoneId)) return true;
-                    unavailableRows.push({ type: t, msg: getCityServiceDisabledMessage(t, zoneName, zoneId) });
-                    return false;
-                });
-            }
-
-            list.innerHTML = '';
-            if (unavailableRows.length) {
-                queueMicrotask(() => {
-                    unavailableRows.forEach(({ type, msg }) => {
-                        list.querySelectorAll('[data-unavailable-type="' + type + '"]').forEach((n) => n.remove());
-                        const meta = getServiceMeta(type);
-                        const row = document.createElement('div');
-                        row.className = 'ride-option-unavailable';
-                        row.dataset.unavailableType = type;
-                        row.setAttribute('aria-disabled', 'true');
-                        row.style.cssText = 'display:flex;gap:10px;align-items:center;padding:10px 12px;margin-top:6px;border-radius:12px;background:#f8fafc;border:1px dashed #cbd5e1;color:#64748b;font-size:12px;opacity:.85';
-                        row.innerHTML = '<span style="font-size:18px">' + (type === 'moto' ? '🏍️' : '🚗') + '</span><span><strong style="color:#334155"></strong><br><span class="hr-why"></span></span>';
-                        row.querySelector('strong').textContent = (meta?.label || type) + ' · No disponible';
-                        row.querySelector('.hr-why').textContent = msg;
-                        list.appendChild(row);
-                    });
-                });
-            }
-
             const quickConditions = route
                 ? buildRouteConditions(analyzeTrafficFromRoute(route), null)
                 : null;
+            const trafficAdjustsFare = (quickConditions?.trafficSurchargePercent || 0) > 0;
+            const priceNote = trafficAdjustsFare ? 'con tráfico' : 'precio estimado';
+            const zoneId = window.activeServiceZoneId || getDefaultZoneId();
+            const zoneName = getZoneById(zoneId)?.name || '';
+            const taxiOff = taxiTradicionalOff(zoneId, zoneName);
+            const cuts = normalizeCutoffs(window.__hrRideCutoffs);
+            const familiarCap = (cuts.familiarMinSeats >= 6 && cuts.familiarMaxSeats >= cuts.familiarMinSeats)
+                ? `Hasta ${cuts.familiarMaxSeats} personas`
+                : 'Hasta 4 personas';
+            const onlineKnown = Array.isArray(window.__HR_SERVICE_ONLINE?.locs);
+            const onlineFlags = categoryAvailability(
+                window.__HR_SERVICE_ONLINE?.locs || [],
+                window.__hrRideCutoffs || null,
+                { known: onlineKnown }
+            );
+            const supply = window.__hrRideSupply;
+            const registeredKnown = !!(supply && supply.zoneId === zoneId && Date.now() - supply.at < RIDE_SUPPLY_TTL_MS && supply.known);
+            const registeredFlags = registeredCardFlags(supply?.counts, { known: registeredKnown });
+            if (!registeredKnown) {
+                loadRideSupply(zoneId).then((counts) => {
+                    if (!counts || window.__hrRideSupply?.zoneId !== zoneId) return;
+                    window.renderRideOptions?.(window.currentRouteData || route, { syncFare: false });
+                });
+            }
+            const motoBlocked = isMalePassengerMotoRideBlocked() || isServiceTypeDisabledInCity('moto', zoneId);
+            const vipBlocked = isServiceTypeDisabledInCity('auto', zoneId);
+            paintTaxiPill(taxiOff);
+            const cardOff = (id) => rideCardIsOff(id, {
+                registeredFlags,
+                registeredKnown,
+                onlineFlags,
+                onlineKnown,
+                cityBlocked: id === 'moto' ? motoBlocked : vipBlocked
+            });
 
-            types.forEach(type => {
-                const meta = getServiceMeta(type);
-                const pax = normalizePassengerCount(type, window.currentPassengers || 1);
-                let price, priceLabel, subLabel;
+            const options = [
+                { id: 'moto', service: 'moto', category: 'moto', name: 'Moto (pasajeros)', cap: 'Hasta 2 personas', icon: 'fa-motorcycle', tint: 'violet' },
+                { id: 'economico', service: 'auto', category: 'economico', name: 'Económico', cap: 'Hasta 4 personas', icon: 'fa-car', tint: 'blue' },
+                { id: 'taxi_vip', service: 'auto', category: null, name: 'Taxi VIP', cap: 'Hasta 4 personas', icon: 'fa-car', tint: 'blue' },
+                { id: 'confort', service: 'auto', category: 'confort', name: 'Confort', cap: 'Hasta 4 personas', icon: 'fa-snowflake', tint: 'sky' },
+                { id: 'familiar', service: 'auto', category: 'familiar', name: 'Familiar', cap: familiarCap, icon: 'fa-shuttle-van', tint: 'blue' },
+                { id: 'vip', service: 'auto', category: 'vip', name: rideCategoryLabel('vip') || 'Premium', cap: 'Hasta 4 personas', icon: 'fa-crown', tint: 'blue' },
+            ].map((opt) => ({ ...opt, off: cardOff(opt.id) }));
+            if (!options.some((o) => o.id === window.currentRidePick && !o.off)) {
+                window.currentRidePick = firstSelectableCard(RIDE_CARD_IDS, (id) => options.find((o) => o.id === id)?.off);
+            }
+            const chosen = options.find((o) => o.id === window.currentRidePick && !o.off) || null;
+            if (chosen) {
+                window.currentRideCategory = chosen.category;
+                if (normalizeServiceType(window.currentServiceType) !== chosen.service) {
+                    window.currentServiceType = chosen.service;
+                }
+            }
+
+            list.innerHTML = '';
+            options.forEach((opt) => {
+                let price = 0;
                 if (isHourly) {
                     const hourlyOpts = getCurrentHourlyOptions();
                     if (km > 0) hourlyOpts.distanceKm = km;
-                    hourlyOpts.passengers = pax;
-                    price = calculateHourlyFare(type, hours, hourlyOpts, quickConditions);
-                    priceLabel = formatMoney(price);
-                    subLabel = `${getHourlyRate(type)}/h × ${getHourlyLabel(hours)}`;
-                    if (hourlyOpts.isNight) subLabel += ' · +25% noche';
-                    if (hourlyOpts.distanceKm > 25) subLabel += ' · +km';
-                    subLabel += ` · ${pax} pers · ${hourlyOpts.multipleStops ? 'múltiples' : '2 paradas'}`;
+                    hourlyOpts.passengers = 1;
+                    price = calculateHourlyFare(opt.service, hours, hourlyOpts, quickConditions);
                 } else {
-                    price = calculateServiceFare(type, km, quickConditions, pax);
-                    const fx = applyAdminFixedFare(price, type, route);
-                    price = fx.price;
-                    priceLabel = formatMoney(price);
-                    // Misma pinta “normal” que un cálculo de ruta (sin decir “fija/sistema”)
-                    subLabel = quickConditions?.traffic?.trafficAware ? 'con tráfico' : 'aprox';
-                    if (pax > 1) subLabel += ` · ${pax} pers`;
+                    price = calculateServiceFare(opt.service, km, quickConditions, {
+                        passengers: 1,
+                        rideCategory: opt.category
+                    });
+                    price = applyAdminFixedFare(price, opt.service, route).price;
                 }
-                const isSelected = window.currentServiceType === type;
-
-                const card = document.createElement('div');
-                card.className = `ride-card flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all min-h-[60px] ${isSelected ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'}`;
-                let iconBg = type === 'moto' ? 'bg-violet-100 text-violet-600'
-                    : type === 'auto' ? 'bg-blue-100 text-blue-600'
-                    : type === 'taxi' ? 'bg-yellow-100 text-yellow-700'
-                    : type === 'grua' ? 'bg-rose-100 text-rose-600'
-                    : type === 'flete_camion' || type === 'flete_paila' ? 'bg-slate-100 text-slate-600'
-                    : 'bg-amber-100 text-amber-600';
-                let paxText;
-                if (isHourly) {
-                    const stopType = window.currentHourlyStopType === 'multi' ? 'múltiples paradas' : '2 paradas';
-                    paxText = `${formatPassengersLabel(pax)} · ${stopType}`;
-                } else {
-                    const maxP = getMaxPassengers(type);
-                    paxText = pax > 1
-                        ? `${formatPassengersLabel(pax)} · +extra`
-                        : (maxP <= 1 ? '1 persona' : `Hasta ${maxP} personas`);
-                }
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'ride-vehicle-card ride-card' + (chosen && opt.id === chosen.id ? ' is-selected' : '') + (opt.off ? ' is-off' : '');
+                card.dataset.ridePick = opt.id;
+                card.setAttribute('aria-disabled', opt.off ? 'true' : 'false');
                 card.innerHTML = `
-                    <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${iconBg}">
-                        ${getServiceIconHtml(meta, 'text-xl')}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="font-black text-sm">${meta.label}${isHourly ? ' <span class="text-emerald-600">· por horas</span>' : ''}</div>
-                        <div class="text-[10px] text-gray-500">${paxText}</div>
-                    </div>
-                    <div class="text-right flex-shrink-0">
-                        <div class="price-value font-black text-base">${formatLempiras(price)}</div>
-                        <div class="text-[9px] text-gray-400">${subLabel}</div>
-                    </div>
-                `;
-                card.onclick = async () => {
-                    window.selectServiceType(type, { keepFareVisible: true, confirmStep: true });
-                    window.syncFareCardFromRoute(route, { scroll: false });
-                    window.renderTripPassengerChips?.();
-                    if (isHourly && typeof renderHourlyPassengerChips === 'function') {
-                        renderHourlyPassengerChips();
+                    <span class="ride-vehicle-ico ride-vehicle-ico--${opt.tint}"><i class="fas ${opt.icon}"></i></span>
+                    <span class="ride-vehicle-copy"><strong></strong><small></small></span>
+                    <span class="ride-vehicle-price"><b class="price-value"></b><small></small></span>`;
+                card.querySelector('strong').textContent = opt.name;
+                card.querySelector('.ride-vehicle-copy small').textContent = opt.cap;
+                card.querySelector('.price-value').textContent = formatLempiras(price);
+                card.querySelector('.ride-vehicle-price small').textContent = isHourly ? 'por horas' : priceNote;
+                card.addEventListener('click', () => {
+                    if (opt.off) {
+                        const why = opt.id === 'moto' && isMalePassengerMotoRideBlocked()
+                            ? DECRETO_91_2012_MSG
+                            : 'Ahora no hay un conductor de esa categoría cerca. Elegí otra.';
+                        window.showToast?.(why, 'warning');
+                        return;
                     }
-                };
+                    window.selectRidePick?.(opt.id, { route });
+                });
                 list.appendChild(card);
             });
+            if (taxiOff || !isServiceAllowedInMarket('taxi')) {
+                const dashed = document.createElement('div');
+                dashed.className = 'ride-vehicle-card is-dashed';
+                dashed.setAttribute('aria-disabled', 'true');
+                const why = (String(zoneId || '').toLowerCase() === 'tegucigalpa' || String(zoneName).toLowerCase().includes('tegucigalpa'))
+                    ? 'Taxi normal (tradicional) no está disponible en Tegucigalpa por ahora.'
+                    : (getCityServiceDisabledMessage('taxi', zoneName, zoneId) || 'No está disponible por ahora.');
+                dashed.innerHTML = `<span class="ride-vehicle-ico ride-vehicle-ico--rose"><i class="fas fa-taxi"></i></span><span class="ride-vehicle-copy"><strong>Taxi tradicional · No disponible</strong><small></small></span>`;
+                dashed.querySelector('small').textContent = why;
+                list.appendChild(dashed);
+            }
 
-            window._bookingFaresReady = types.length > 0;
+            window._bookingFaresReady = options.length > 0;
             if (route && syncFare) {
                 window.syncFareCardFromRoute(route);
             }
@@ -7597,13 +7681,7 @@ if (document.readyState === 'loading') {
             .some((btn) => btn.classList.contains('hrh-off') || btn.classList.contains('is-unavailable'));
 
         window.syncRideCategoryDock = () => {
-            const row = document.getElementById('ride-category-dock');
-            const dock = document.getElementById('booking-primary-dock');
-            const show = document.body.classList.contains('passenger-mode-trip')
-                && normalizeServiceType(window.currentServiceType) === 'auto'
-                && !!dock && !dock.classList.contains('hidden');
-            if (row) row.hidden = !show;
-            document.body.classList.toggle('ride-cat-dock-on', show);
+            document.body.classList.remove('ride-cat-dock-on');
         };
 
         window.refreshRideCategoryChips = (locs) => {
@@ -7626,10 +7704,19 @@ if (document.readyState === 'loading') {
 
         window.ensureDefaultRideCategory = () => {
             const car = ['economico', 'confort', 'familiar', 'vip'];
-            if (normalizeServiceType(window.currentServiceType) === 'auto' && !car.includes(window.currentRideCategory)) {
-                window.currentRideCategory = 'economico';
-            } else if (!window.currentRideCategory && normalizeServiceType(window.currentServiceType) !== 'moto' && normalizeServiceType(window.currentServiceType) !== 'taxi') {
-                window.currentRideCategory = 'economico';
+            if (window.currentRidePick === 'taxi_vip') {
+                window.currentRideCategory = null;
+            } else if (!window.currentRidePick) {
+                const svc = normalizeServiceType(window.currentServiceType || 'auto');
+                if (svc === 'moto') {
+                    window.currentRidePick = 'moto';
+                    window.currentRideCategory = 'moto';
+                } else if (car.includes(window.currentRideCategory)) {
+                    window.currentRidePick = window.currentRideCategory;
+                } else {
+                    window.currentRidePick = 'taxi_vip';
+                    window.currentRideCategory = null;
+                }
             }
             window.refreshRideCategoryChips?.(window.__HR_SERVICE_ONLINE?.locs || null);
             window.paintRideCategoryChips?.();
@@ -7664,7 +7751,7 @@ if (document.readyState === 'loading') {
             if (window.currentRouteData) window.syncFareCardFromRoute?.(window.currentRouteData, { scroll: false });
         };
 
-        window.selectServiceType = (type, { keepFareVisible = false, skipCityCheck = false, confirmStep = false } = {}) => {
+        window.selectServiceType = (type, { keepFareVisible = false, skipCityCheck = false, confirmStep = false, keepRideCategory = false } = {}) => {
             let normalizedType = normalizeServiceType(type);
 
             // Decreto 91-2012: hombres no pueden viajar en moto (sí envíos). No traba el flujo:
@@ -7698,14 +7785,24 @@ if (document.readyState === 'loading') {
             }
 
             window.currentServiceType = normalizedType;
-            if (normalizedType === 'moto') {
-                window.currentRideCategory = 'moto';
-            } else if (normalizedType !== 'auto') {
-                window.currentRideCategory = null;
-            } else if (!['economico', 'confort', 'familiar', 'vip'].includes(window.currentRideCategory)) {
-                window.currentRideCategory = 'economico';
+            if (!keepRideCategory) {
+                if (normalizedType === 'moto') {
+                    window.currentRideCategory = 'moto';
+                    window.currentRidePick = 'moto';
+                } else if (normalizedType !== 'auto') {
+                    window.currentRideCategory = null;
+                    window.currentRidePick = normalizedType === 'taxi' ? 'taxi' : window.currentRidePick;
+                } else if (window.currentRidePick === 'taxi_vip') {
+                    window.currentRideCategory = null;
+                } else if (!['economico', 'confort', 'familiar', 'vip'].includes(window.currentRideCategory)) {
+                    window.currentRideCategory = null;
+                    window.currentRidePick = 'taxi_vip';
+                }
             }
             window.paintRideCategoryChips?.();
+            if (!keepRideCategory && document.body.classList.contains('passenger-mode-trip')) {
+                window.renderRideOptions?.(window.currentRouteData, { syncFare: false });
+            }
             if (confirmStep) {
                 window.serviceTypeChosen = true;
             }
@@ -41716,10 +41813,21 @@ window.cancelSetupAndLogout = () => {
                 buttonDisabled: !!btn?.disabled,
                 unavailable: !!btn?.classList.contains('hr-svc-unavailable'),
             });
+            const pickNames = {
+                moto: 'Moto',
+                economico: 'Económico',
+                taxi_vip: 'Taxi VIP',
+                confort: 'Confort',
+                familiar: 'Familiar',
+                vip: 'Premium'
+            };
+            if (!window.currentRidePick) {
+                return { type, available: false, name: '', meta };
+            }
             return {
                 type,
                 available,
-                name: bookingTypeButtonName(type, meta?.label || ''),
+                name: pickNames[window.currentRidePick] || bookingTypeButtonName(type, meta?.label || ''),
                 meta,
             };
         }
