@@ -434,8 +434,14 @@ if (typeof window !== 'undefined') {
     window.resetDeliveryWizard = resetDeliveryWizard;
     window.revealDeliveryWizardGap = revealDeliveryWizardGap;
     window.syncDeliveryWizard = syncDeliveryWizard;
-    window.onDeliveryCategoryPicked = () => {
+    window.onDeliveryCategoryPicked = (catId, fromUser = false) => {
         if (wizardState.open === 'category') showStepError('category', '');
+        // v122 · Al tocar una opción se pasa solo a la siguiente pregunta. Antes había que tocar
+        // además «Siguiente» y, como la opción elegida se veía en blanco, parecía trabado.
+        if (fromUser && wizardState.open === 'category') {
+            applyTransition(advanceDeliveryWizard(wizardState, readDeliveryWizardValues()));
+            return;
+        }
         renderDeliveryWizard();
     };
 }
