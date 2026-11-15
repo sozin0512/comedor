@@ -2189,6 +2189,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             window.hideTripKeyboard?.();
             window._mapPickDragged = false;
             window._mapPickUserMoved = false;
+            window._mapPickStartedAt = Date.now();
             window._mapPickSavedRouteSlot = 2; // slots deprecated for ordering; destination always final, stops follow list order + reordering arrows
             window._mapPickPanelRestore = window.savePanelStateForMapPick?.();
             const copy = mapPickContextCopy(pickContext);
@@ -2338,6 +2339,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 }
                 e?.preventDefault?.();
                 e?.stopPropagation?.();
+                // v126 · El toque que ABRE el selector (botón del pin) no debe contar como «Confirmar»:
+                // el botón aparece bajo el mismo dedo y el punto se confirmaba solo, sin dejar mover el mapa.
+                if (Date.now() - (window._mapPickStartedAt || 0) < 700) return;
                 handler();
             };
             btn.addEventListener('click', run);
