@@ -85,6 +85,7 @@ export function getNotificationPermission() {
 export async function initTripNotifications() {
     if (isCapacitorNative()) return false;
     if (!isNotificationSupported()) return false;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return false;
 
     try {
         const swUrl = getMessagingSwUrl(import.meta.url);
