@@ -358,8 +358,10 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
 };
 
 window.driverSignalDestinationArrival = async () => {
-    if (window.__hrDestBusy) return window.showToast?.('Finalizando viaje… espera un momento.', 'warning');
+    // v134 · El candado caduca solo (ver finishTrip): un intento colgado no bloquea los siguientes.
+    if (window.__hrDestBusy && Date.now() - (window.__hrDestBusyAt || 0) < 30000) return window.showToast?.('Finalizando viaje… espera un momento.', 'warning');
     window.__hrDestBusy = true;
+    window.__hrDestBusyAt = Date.now();
     try { return await hrDestArrivalInner(); }
     catch (e) {
         console.error('driverSignalDestinationArrival', e);
@@ -449,8 +451,10 @@ const hrFinishHere = async (trip, { pos = null, dest = null, dist = Infinity } =
 
 /** Botón «¿No podés finalizar?» del conductor (viaje aceptado o en curso). */
 window.driverFinishHere = async () => {
-    if (window.__hrDestBusy) return window.showToast?.('Finalizando viaje… espera un momento.', 'warning');
+    // v134 · El candado caduca solo (ver finishTrip): un intento colgado no bloquea los siguientes.
+    if (window.__hrDestBusy && Date.now() - (window.__hrDestBusyAt || 0) < 30000) return window.showToast?.('Finalizando viaje… espera un momento.', 'warning');
     window.__hrDestBusy = true;
+    window.__hrDestBusyAt = Date.now();
     try {
         const trip = window.activeTrip || window.currentActiveTripData;
         const uid = window.currentUser?.uid;
