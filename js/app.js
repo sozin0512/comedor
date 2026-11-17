@@ -459,7 +459,25 @@ window.hrConfirm = (message, opts = {}) => new Promise((resolve) => {
         wrap.addEventListener('click', (e) => { if (e.target === wrap) finish(false); });
         row.append(no, yes); box.append(p, row); wrap.append(box);
         document.body.appendChild(wrap);
-        setTimeout(() => yes.focus?.(), 30);
+        // v134 · okDelayMs: el botón «Sí» arranca bloqueado con cuenta regresiva, para acciones que
+        // no se deben confirmar con un toque de más (finalizar un viaje antes del destino).
+        const delayMs = Math.max(0, Number(opts.okDelayMs) || 0);
+        if (delayMs > 0) {
+            const label = yes.textContent;
+            const until = Date.now() + delayMs;
+            yes.disabled = true;
+            yes.style.opacity = '0.45';
+            const tick = () => {
+                if (done) return;
+                const left = until - Date.now();
+                if (left <= 0) { yes.disabled = false; yes.style.opacity = '1'; yes.textContent = label; return; }
+                yes.textContent = `${label} (${Math.ceil(left / 1000)})`;
+                setTimeout(tick, 250);
+            };
+            tick();
+        } else {
+            setTimeout(() => yes.focus?.(), 30);
+        }
     } catch (e) {
         console.warn('hrConfirm fallback', e);
         resolve(window.confirm(message));

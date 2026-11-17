@@ -262,8 +262,16 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
     const helpBtn = document.getElementById('driver-finish-here-btn');
     if (helpBtn) {
         const mine = isDriver && trip?.driverId === uid;
-        const showHelp = mine && (inProgress || (trip?.status === 'accepted' && !!trip?.driverArrived && !window.isDeliveryTrip?.(trip)));
+        // v134 · Solo con el viaje ya iniciado y pasado el primer minuto y medio. En la fase del PIN
+        // ya no aparece (estaba junto al PIN y se tocaba por error); para un viaje que nunca se
+        // inició con PIN sigue la opción al cancelar («¿Ya llevaste al pasajero?»).
+        if (inProgress) hrTripStartSeenAt(trip);
+        const showHelp = mine && inProgress && (Date.now() - hrTripStartSeenAt(trip) >= 90000);
         helpBtn.classList.toggle('hidden', !showHelp);
+        if (mine && inProgress && !showHelp) {
+            clearTimeout(window._hrHelpBtnTimer);
+            window._hrHelpBtnTimer = setTimeout(() => { try { window.syncDriverDestinationArrivalUi?.(); } catch (_) {} }, 91000 - (Date.now() - hrTripStartSeenAt(trip)));
+        }
     }
 
     if (!isDriver || !inProgress) {
@@ -418,6 +426,40 @@ const hrZoneDeliveryDone = async (trip) => {
  * (pasajero se bajó antes, cambió de destino, viaje por horas, GPS malo) o aunque nunca se
  * haya ingresado el PIN (solo viajes en efectivo). Guarda dónde y por qué, para revisión.
  */
+/** Momento (reloj de este teléfono) en que se vio el viaje «en curso» por primera vez. */
+const hrTripStartSeenAt = (trip) => {
+    // Si el viaje trae su hora de inicio del servidor, usarla (sobrevive a recargar la app).
+    try {
+        const st = trip?.startedAt;
+        const ms = typeof st?.toMillis === 'function' ? st.toMillis() : (Number(st?.seconds) > 0 ? Number(st.seconds) * 1000 : 0);
+        if (ms > 0 && ms <= Date.now() + 300000) return Math.min(ms, Date.now());
+    } catch (_) {}
+    const s = window._hrInProgressSeen;
+    if (s && s.id === trip?.id) return s.at;
+    window._hrInProgressSeen = { id: trip?.id, at: Date.now() };
+    return window._hrInProgressSeen.at;
+};
+/**
+ * ¿Es demasiado pronto para ofrecer «finalizar aquí» desde el botón de llegada al destino?
+ * Devuelve el aviso a mostrar, o '' si se puede ofrecer.
+ */
+const hrEarlyFinishBlock = (trip, pos, dest, dist) => {
+    if (!dest) return ''; // viajes sin destino fijo (por horas): no aplica
+    const sinceMs = Date.now() - hrTripStartSeenAt(trip);
+    if (sinceMs < 90000) {
+        return 'El viaje acaba de iniciar. Este botón es para cuando llegués al destino con el pasajero.';
+    }
+    const oLat = Number(trip.originLat ?? trip.originLatLng?.lat ?? trip.pickupLat);
+    const oLng = Number(trip.originLng ?? trip.originLatLng?.lng ?? trip.pickupLng);
+    if (pos && Number.isFinite(oLat) && Number.isFinite(oLng)) {
+        const fromOrigin = window.getDistanceMetersBetween(pos, { lat: oLat, lng: oLng });
+        if (Number.isFinite(fromOrigin) && fromOrigin < 250 && dist > TRIP_DEST_CONFIRM_RADIUS_M) {
+            return 'Todavía estás en el punto de recogida. Llevá al pasajero al destino y tocá el botón al llegar.';
+        }
+    }
+    return '';
+};
+
 const hrFinishHere = async (trip, { pos = null, dest = null, dist = Infinity } = {}) => {
     const accepted = trip.status === 'accepted';
     const km = Number.isFinite(dist) ? (dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)} m`) : '';
@@ -428,8 +470,10 @@ const hrFinishHere = async (trip, { pos = null, dest = null, dist = Infinity } =
         sin_gps: 'No tenemos tu ubicación GPS ahora.\n\n¿Ya dejaste al pasajero? El viaje se finalizará igual.',
         lejos_destino: `Estás a ${km} del destino.\n\n¿El pasajero se bajó aquí? El viaje se finalizará en este punto.`,
     };
+    // v134 · Confirmación en rojo y con el botón «Sí» bloqueado 3 s: un toque de más (por ejemplo
+    // justo después del PIN) ya no puede cerrar el viaje sin querer.
     const ok = await (window.hrConfirm
-        ? window.hrConfirm(`${lines[reason]}\n\nQueda registrado para revisión de HonduRaite.`, { okText: 'Sí, finalizar aquí', cancelText: 'Todavía no' })
+        ? window.hrConfirm(`⚠️ Vas a FINALIZAR el viaje antes de llegar al destino.\n\n${lines[reason]}\n\nQueda registrado para revisión de HonduRaite.`, { okText: 'Sí, finalizar aquí', cancelText: 'No, seguir el viaje', danger: true, okDelayMs: 3000 })
         : Promise.resolve(confirm(lines[reason])));
     if (!ok) return;
     const patch = {
@@ -506,6 +550,11 @@ const hrDestArrivalInner = async () => {
     // botón bloqueaba y el conductor terminaba CANCELANDO (el viaje no contaba). Ahora puede
     // finalizar aquí con una confirmación; queda marcado para revisión del staff.
     if (!pos || !dest || dist > TRIP_DEST_CONFIRM_RADIUS_M) {
+        // v134 · Este es el botón de «llegué al destino». Si el viaje acaba de iniciar o el conductor
+        // sigue en el punto de recogida, NO se ofrece finalizar: desde la v112 un toque de más tras
+        // el PIN abría la confirmación y el viaje se cerraba en el punto del cliente.
+        const early = hrEarlyFinishBlock(trip, pos, dest, dist);
+        if (early) return window.showToast?.(early, 'warning');
         return hrFinishHere(trip, { pos, dest, dist });
     }
 
