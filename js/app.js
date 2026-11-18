@@ -13,7 +13,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { APP_CONFIG } from "./config.js?v=2026.10.26.135";
 import {
-    offerRouteSketchHtml, driverStageTargetFromWindow,
+    driverStageTargetFromWindow,
     openDriverStageInWaze, openDriverStageInGoogleMaps
 } from "./driver-external-nav.js?v=2026.10.26.135";
 import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.135";
@@ -11460,7 +11460,6 @@ if (document.readyState === 'loading') {
             window._driverOfferPreviewRouteTripId = tripId;
             window._driverOfferPreviewForce = false;
             window.drawRouteOnMap?.(route, { driverOfferPreview: true });
-            window.paintOfferRouteSketch?.(tripId, route, t);
             updateDriverOfferMapHint({ trip: t, route });
             // Encuadre con padding real del panel (segunda pasada tras pintar)
             requestAnimationFrame(() => {
@@ -12088,7 +12087,6 @@ if (document.readyState === 'loading') {
                         <p class="hr-ofr-price uber-vert-price">${priceLabel}</p>
                         <p class="hr-ofr-perkm">${perKmTxt}${perKmTxt && paymentBadge ? ' · ' : ''}${paymentBadge}</p>
                     </div>
-                    ${offerRouteSketchHtml({ ...t, id: tripId }, window.currentDriverPos)}
                     <div class="hr-ofr-chips">
                         <span class="hr-ofr-chip hr-ofr-chip--name"><i class="fas fa-user"></i> <span class="client-name-${tripId}">${clientShort}</span></span>
                         <span class="hr-ofr-chip"><i class="fas fa-star"></i> ${clientStars}</span>
@@ -12137,7 +12135,6 @@ if (document.readyState === 'loading') {
                     ${schedBanner}
                     ${storeExclusiveTurnBadgeHtml({ ...t, id: tripId })}
                     ${storeCollectHtml(t, acceptPriceNum)}
-                    ${offerRouteSketchHtml({ ...t, id: tripId }, window.currentDriverPos)}
                     <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Dibuja la ruta en el mapa (solo orientación)">
                         <i class="fas fa-map-marked-alt" aria-hidden="true"></i> Ver en el mapa
                     </button>

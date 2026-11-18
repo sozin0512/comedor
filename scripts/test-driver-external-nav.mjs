@@ -5,7 +5,7 @@
 import { APP_CONFIG } from '../js/config.js';
 import {
     driverTurnByTurnEnabled, driverStageTarget, wazeAppUrl, wazeWebUrl,
-    googleMapsNavUrl, offerRouteSketchSvg
+    googleMapsNavUrl
 } from '../js/driver-external-nav.js';
 
 let failed = 0;
@@ -29,14 +29,6 @@ eq('parada', driverStageTarget({ ...ride, status: 'in_progress' }, { leg: { lat:
 eq('waze app', wazeAppUrl(14.1, -87.2), 'waze://?ll=14.1,-87.2&navigate=yes');
 eq('waze web', wazeWebUrl(14.1, -87.2), 'https://waze.com/ul?ll=14.1,-87.2&navigate=yes');
 eq('maps', googleMapsNavUrl(14.1, -87.2), 'https://www.google.com/maps/dir/?api=1&destination=14.1,-87.2&travelmode=driving');
-
-const svg = offerRouteSketchSvg({
-    driver: { lat: 14.08, lng: -87.22 },
-    pickup: { lat: 14.1, lng: -87.2 },
-    destination: { lat: 14.2, lng: -87.3 }
-});
-eq('dibujo ámbar', svg.includes('#f59e0b'), true);
-eq('dibujo verde', svg.includes('#059669'), true);
 
 if (failed) {
     console.error(failed, 'fallaron');

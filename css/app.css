@@ -28688,8 +28688,6 @@ body.android-gesture .driver-external-nav,
 body.capacitor-ios .driver-external-nav {
     margin-bottom: calc(8px + max(20px, env(safe-area-inset-bottom, 0px)));
 }
-.hr-ofr-sketch { margin: 0.35rem 0 0.15rem; }
-.hr-ofr-sketch-svg { display: block; width: 100%; height: 4.6rem; border-radius: 0.85rem; }
 
 /* Opciones de un producto: panel a pantalla completa, misma tarjeta blanca que «Elige el tipo». */
 #menu-options-root {

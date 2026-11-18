@@ -140,77 +140,8 @@ export async function openDriverStageInGoogleMaps(trip) {
     return openExternalUrl(url);
 }
 
-function projectPoints(points, w = 320, h = 108, pad = 14) {
-    const lats = points.map((p) => p.lat);
-    const lngs = points.map((p) => p.lng);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    const dx = Math.max(0.00008, maxLng - minLng);
-    const dy = Math.max(0.00008, maxLat - minLat);
-    return points.map((p) => {
-        const x = pad + ((p.lng - minLng) / dx) * (w - pad * 2);
-        const y = pad + ((maxLat - p.lat) / dy) * (h - pad * 2);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-}
-
-function polyline(points, color) {
-    if (!points || points.length < 2) return '';
-    const d = projectPoints(points).join(' ');
-    return `<polyline points="${d}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>`;
-}
-
-/** Dos trazos: ámbar conductor→recogida, verde recogida→destino. */
-export function offerRouteSketchSvg({ driver, pickup, destination, toPickupPath, tripPath } = {}) {
-    const amber = (toPickupPath && toPickupPath.length >= 2)
-        ? toPickupPath
-        : (driver && pickup ? [driver, pickup] : null);
-    const green = (tripPath && tripPath.length >= 2)
-        ? tripPath
-        : (pickup && destination ? [pickup, destination] : null);
-    const all = [...(amber || []), ...(green || [])];
-    if (all.length < 2) return '';
-    return `<svg class="hr-ofr-sketch-svg" viewBox="0 0 320 108" role="img" aria-label="Ruta de la oferta">
-        <rect width="320" height="108" rx="14" fill="#eef3f8"></rect>
-        ${polyline(amber, '#f59e0b')}
-        ${polyline(green, '#059669')}
-    </svg>`;
-}
-
-export function offerRouteSketchHtml(trip, driverPos = null) {
-    const pickup = trip?.originLat != null ? { lat: Number(trip.originLat), lng: Number(trip.originLng) } : null;
-    const destination = trip?.destinationLat != null ? { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng) } : null;
-    const svg = offerRouteSketchSvg({
-        driver: driverPos,
-        pickup,
-        destination,
-    });
-    if (!svg) return '';
-    return `<div class="hr-ofr-sketch" data-offer-sketch="${String(trip.id || '')}">${svg}</div>`;
-}
-
-export function paintOfferRouteSketch(tripId, route, trip) {
-    if (typeof document === 'undefined' || !tripId) return;
-    const el = document.querySelector(`[data-offer-sketch="${tripId}"]`);
-    if (!el || !route) return;
-    const legs = Array.isArray(route.previewLegs) ? route.previewLegs : [];
-    const toPickup = legs.find((leg) => leg.role === 'toPickup')?.path;
-    const client = legs.find((leg) => leg.role === 'clientTrip')?.path;
-    const svg = offerRouteSketchSvg({
-        driver: toPickup?.[0] || null,
-        pickup: trip?.originLat != null ? { lat: Number(trip.originLat), lng: Number(trip.originLng) } : null,
-        destination: trip?.destinationLat != null ? { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng) } : null,
-        toPickupPath: toPickup,
-        tripPath: client,
-    });
-    if (svg) el.innerHTML = svg;
-}
-
 if (typeof window !== 'undefined') {
     applyDriverTurnByTurnFlag();
     window.openDriverStageInWaze = openDriverStageInWaze;
     window.openDriverStageInGoogleMaps = openDriverStageInGoogleMaps;
-    window.paintOfferRouteSketch = paintOfferRouteSketch;
 }

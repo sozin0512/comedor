@@ -3,113 +3,172 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Ejemplo · Waze y Maps</title>
+    <title>Mapa real · oferta y viaje</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/tailwind.css">
     <link rel="stylesheet" href="../css/app.css">
     <style>
-        html, body { margin: 0; height: 100%; background: #d7e3d4; font-family: system-ui, sans-serif; }
-        .shot { display: none; height: 100%; position: relative; }
-        body[data-shot="offer"] .shot-offer,
-        body[data-shot="pickup"] .shot-pickup,
-        body[data-shot="dest"] .shot-dest { display: block; }
-        .map {
-            position: absolute; inset: 0 0 0 0;
-            background:
-                linear-gradient(180deg, rgba(255,255,255,.2), transparent 30%),
-                #c5d5b8;
-        }
-        .map svg { width: 100%; height: 62%; display: block; }
-        .card {
-            position: absolute; left: 10px; right: 10px; bottom: 12px;
-            background: #fff; border-radius: 22px; padding: 14px 14px 12px;
-            box-shadow: 0 12px 30px rgba(15,23,42,.18);
-        }
-        body.android-3btn .card { bottom: 64px; }
+        html, body { margin: 0; height: 100%; background: #dbe7d4; }
+        #map { position: absolute; inset: 0; }
         .preview-nav {
             display: none; position: fixed; left: 0; right: 0; bottom: 0; height: 48px;
-            background: #111; color: #fff; z-index: 20;
+            background: #111; color: #fff; z-index: 40000;
             align-items: center; justify-content: space-around; font-size: 11px;
         }
         body.android-3btn .preview-nav { display: flex; }
-        .price { margin: 0; font-size: 1.8rem; font-weight: 900; }
-        .meta { margin: 2px 0 8px; color: #64748b; font-size: 12px; font-weight: 800; }
-        .row { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; }
-        .dot { width: 10px; height: 10px; border-radius: 99px; background: #f59e0b; margin-top: 4px; }
-        .sq { width: 10px; height: 10px; background: #059669; margin-top: 4px; }
-        .addr { margin: 0; font-weight: 800; font-size: 14px; }
-        .sub { margin: 0; color: #64748b; font-size: 12px; font-weight: 700; }
-        .who { margin: 0 0 2px; font-weight: 900; }
+        body.android-3btn .driver-trip-offer-popup { padding-bottom: 56px; }
+        #trip-sheet {
+            display: none;
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+            background: #fff; border-radius: 22px 22px 0 0;
+            padding: 12px 14px 14px;
+            box-shadow: 0 -8px 24px rgba(15,23,42,.16);
+        }
+        body[data-shot="pickup"] #trip-sheet,
+        body[data-shot="dest"] #trip-sheet { display: block; }
+        body[data-shot="pickup"] .driver-trip-offer-popup,
+        body[data-shot="dest"] .driver-trip-offer-popup { display: none !important; }
+        body.android-3btn #trip-sheet { padding-bottom: 62px; }
+        #trip-sheet .who { margin: 0; font-weight: 900; font-size: 1.05rem; }
+        #trip-sheet .addr { margin: 0 0 8px; font-weight: 800; }
     </style>
 </head>
-<body>
+<body class="driver-mode trip-active">
+    <div id="map"></div>
     <div class="preview-nav"><span>◁</span><span>○</span><span>□</span></div>
 
-    <div class="shot shot-offer">
-        <div class="map">
-            <svg viewBox="0 0 390 520" aria-label="Ruta de la oferta">
-                <polyline points="70,430 150,300 210,250" fill="none" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"></polyline>
-                <polyline points="210,250 280,180 330,90" fill="none" stroke="#059669" stroke-width="8" stroke-linecap="round"></polyline>
-                <circle cx="70" cy="430" r="8" fill="#0f172a"></circle>
-                <circle cx="210" cy="250" r="8" fill="#f59e0b"></circle>
-                <rect x="322" y="82" width="16" height="16" fill="#059669"></rect>
-            </svg>
-        </div>
-        <div class="card">
-            <p class="meta">EJEMPLO · oferta antes de aceptar</p>
-            <p class="price">L 126.00</p>
-            <p class="meta">Ganás L 113.40 · Efectivo</p>
-            <svg class="hr-ofr-sketch-svg" viewBox="0 0 320 108" aria-label="De ti al pasajero y el viaje">
-                <rect width="320" height="108" rx="14" fill="#eef3f8"></rect>
-                <polyline points="36,78 110,48" fill="none" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"></polyline>
-                <polyline points="110,48 250,28" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round"></polyline>
-            </svg>
-            <div class="row"><span class="dot"></span><div><p class="sub">1.2 km · 4 min de ti</p><p class="addr">Parque Central</p></div></div>
-            <div class="row"><span class="sq"></span><div><p class="sub">Viaje 6.6 km · 14 min</p><p class="addr">Hospital Santa Teresa</p></div></div>
+    <div id="driver-trip-offer-popup" class="driver-trip-offer-popup" role="dialog" aria-label="Nueva solicitud">
+        <div class="driver-trip-offer-popup-sheet" role="document">
+            <div class="driver-trip-offer-popup-handle" aria-hidden="true"></div>
+            <div class="driver-trip-offer-popup-top">
+                <div class="driver-trip-offer-popup-timer-wrap" aria-live="polite">
+                    <svg class="driver-trip-offer-popup-timer-svg" viewBox="0 0 56 56" aria-hidden="true">
+                        <circle class="driver-trip-offer-popup-timer-track" cx="28" cy="28" r="24"></circle>
+                        <circle class="driver-trip-offer-popup-timer-arc" cx="28" cy="28" r="24"></circle>
+                    </svg>
+                    <span class="driver-trip-offer-popup-timer-sec">86</span>
+                </div>
+                <div class="driver-trip-offer-popup-headline min-w-0">
+                    <p class="driver-trip-offer-popup-title">Nueva solicitud</p>
+                    <p class="driver-trip-offer-popup-sub">Responde antes de que expire</p>
+                </div>
+                <button type="button" class="driver-trip-offer-popup-close" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="driver-trip-offer-popup-body">
+                <div class="driver-offer-card driver-offer-card--uber-vert hr-ofr">
+                    <div class="hr-ofr-top">
+                        <div class="hr-ofr-top-left"><span class="hr-veh-badge" style="color:#2563eb">🚗 Taxi VIP</span></div>
+                        <span class="uber-vert-timer hr-ofr-timer"><i class="fas fa-clock"></i> <span>86</span>s</span>
+                        <button type="button" class="uber-vert-map hr-ofr-icon-btn" aria-label="Ver mapa"><i class="fas fa-map"></i></button>
+                        <button type="button" class="uber-vert-x hr-ofr-icon-btn" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="hr-ofr-price-block">
+                        <p class="hr-ofr-price uber-vert-price">L 126</p>
+                        <p class="hr-ofr-perkm">L 16.13/km est. · Efectivo</p>
+                    </div>
+                    <div class="hr-ofr-chips">
+                        <span class="hr-ofr-chip hr-ofr-chip--name"><i class="fas fa-user"></i> Ana</span>
+                        <span class="hr-ofr-chip"><i class="fas fa-star"></i> 4.9</span>
+                        <span class="hr-ofr-chip"><i class="fas fa-users"></i> 1 pers.</span>
+                    </div>
+                    <div class="hr-ofr-route">
+                        <div class="hr-ofr-row hr-ofr-row--pickup">
+                            <span class="hr-ofr-dot"></span>
+                            <div class="hr-ofr-row-body">
+                                <p class="hr-ofr-eta">1.2 km · 4 min</p>
+                                <p class="hr-ofr-addr">Parque Central</p>
+                            </div>
+                        </div>
+                        <div class="hr-ofr-row hr-ofr-row--dest">
+                            <span class="hr-ofr-square"></span>
+                            <div class="hr-ofr-row-body">
+                                <p class="hr-ofr-meta">Viaje: 14 min (6.6 km)</p>
+                                <p class="hr-ofr-addr">Hospital Santa Teresa</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="uber-vert-actions hr-ofr-actions">
+                        <button type="button" class="uber-vert-btn uber-vert-btn--go">Aceptar L 126</button>
+                        <button type="button" class="uber-vert-btn uber-vert-btn--skip">Pasar</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="shot shot-pickup">
-        <div class="map">
-            <svg viewBox="0 0 390 640" aria-label="Ruta hacia el pasajero">
-                <polyline points="80,520 160,400 230,280" fill="none" stroke="#059669" stroke-width="8" stroke-linecap="round"></polyline>
-                <circle cx="80" cy="520" r="9" fill="#0f172a"></circle>
-                <circle cx="230" cy="280" r="9" fill="#f59e0b"></circle>
-            </svg>
-        </div>
-        <div class="card">
-            <p class="who">Ana López</p>
-            <p class="driver-external-nav-stage">Hacia el pasajero</p>
-            <p class="addr" style="margin-bottom:8px;">Parque Central</p>
-            <div class="driver-external-nav">
-                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--waze">Waze</button>
-                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--gmaps">Google Maps</button>
-            </div>
-            <p class="sub">1.2 km · 4 min · la línea queda en el mapa, sin giros</p>
-        </div>
-    </div>
-
-    <div class="shot shot-dest">
-        <div class="map">
-            <svg viewBox="0 0 390 640" aria-label="Ruta hacia el destino">
-                <polyline points="60,500 140,360 240,200 320,110" fill="none" stroke="#059669" stroke-width="8" stroke-linecap="round"></polyline>
-                <circle cx="60" cy="500" r="9" fill="#0f172a"></circle>
-                <rect x="312" y="102" width="16" height="16" fill="#059669"></rect>
-            </svg>
-        </div>
-        <div class="card">
-            <p class="who">Ana López</p>
-            <p class="driver-external-nav-stage">Hacia el destino</p>
-            <p class="addr" style="margin-bottom:8px;">Hospital Santa Teresa</p>
-            <div class="driver-external-nav">
-                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--waze">Waze</button>
-                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--gmaps">Google Maps</button>
-            </div>
-            <p class="sub">6.6 km · 14 min · sin banner de giros</p>
+    <div id="trip-sheet">
+        <p class="who">Ana López</p>
+        <p id="stage" class="driver-external-nav-stage">Hacia el pasajero</p>
+        <p id="addr" class="addr">Parque Central</p>
+        <div class="driver-external-nav">
+            <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--waze">Waze</button>
+            <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--gmaps">Google Maps</button>
         </div>
     </div>
     <script>
         const q = new URLSearchParams(location.search);
-        document.body.dataset.shot = q.get('shot') || 'offer';
+        const shot = q.get('shot') || 'offer';
+        document.body.dataset.shot = shot;
         if (q.get('nav') === 'android') document.body.classList.add('android-3btn');
+        if (shot === 'dest') {
+            document.getElementById('stage').textContent = 'Hacia el destino';
+            document.getElementById('addr').textContent = 'Hospital Santa Teresa';
+        }
+        const driver = { lat: 14.4452, lng: -87.6288 };
+        const pickup = { lat: 14.4513, lng: -87.6378 };
+        const hospital = { lat: 14.4606, lng: -87.6534 };
+        function decodePolyline(encoded) {
+            const path = [];
+            let index = 0, lat = 0, lng = 0;
+            while (index < encoded.length) {
+                let shift = 0, result = 0, byte = 0;
+                do {
+                    byte = encoded.charCodeAt(index++) - 63;
+                    result |= (byte & 0x1f) << shift;
+                    shift += 5;
+                } while (byte >= 0x20);
+                lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+                shift = 0; result = 0;
+                do {
+                    byte = encoded.charCodeAt(index++) - 63;
+                    result |= (byte & 0x1f) << shift;
+                    shift += 5;
+                } while (byte >= 0x20);
+                lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+                path.push({ lat: lat / 1e5, lng: lng / 1e5 });
+            }
+            return path;
+        }
+        const roads = {
+            toPickup: 'oidwAr~yuO}FC_@lDCbBGr@SN[Xq@f@g@V_CRg@F_@N[TYf@UX|@`@b@X`@f@n@tAjAnCh@zAtBtEzA|CsFvCqCtAyDvBoCx@wGzA',
+            trip: 'coewAxx{uOzA_@jC`NlArFhEEjBGsBnCWL}CjEu@fA]^a@r@}BnDa@n@_AjBI@GF?LDJm@dAo@xAwDfK_ClFaBjEoC|GkB~FgCpGyC{@wA]k@U{C{AcBo@iEyBqBmA'
+        };
+        window.initMap = function () {
+            const map = new google.maps.Map(document.getElementById('map'), {
+                center: pickup,
+                zoom: 14,
+                disableDefaultUI: true,
+                gestureHandling: 'none',
+                clickableIcons: false
+            });
+            const draw = (encoded, color) => {
+                const path = decodePolyline(encoded);
+                new google.maps.Polyline({
+                    path, map, strokeColor: color, strokeOpacity: 0.95, strokeWeight: 7, geodesic: true
+                });
+                return path;
+            };
+            const paths = shot === 'pickup'
+                ? [draw(roads.toPickup, '#f59e0b')]
+                : shot === 'dest'
+                    ? [draw(roads.trip, '#1a73e8')]
+                    : [draw(roads.toPickup, '#f59e0b'), draw(roads.trip, '#059669')];
+            const bounds = new google.maps.LatLngBounds();
+            paths.flat().forEach((p) => bounds.extend(p));
+            map.fitBounds(bounds, { top: 48, right: 28, bottom: shot === 'offer' ? 300 : 200, left: 28 });
+            window.__mapReady = true;
+        };
     </script>
+    <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBCpZ209ORRrbbEDTx0wNUMei0kHXyCZYQ&callback=initMap"></script>
 </body>
 </html>
