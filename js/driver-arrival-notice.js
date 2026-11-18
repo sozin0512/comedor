@@ -1,12 +1,12 @@
 /**
- * Aviso local al llegar a la etapa (recogida, negocio, parada o destino)
- * mientras HonduRaite está en segundo plano.
+ * Dos avisos locales, una vez cada uno:
+ * cerca del cliente (PIN) y cerca del destino (finalizar).
  *
- * - Web y iPhone: suena si el navegador todavía entrega GPS con la pestaña oculta
- *   y el permiso de notificaciones está concedido. En el iPhone, al irse a Waze
- *   el GPS de la web se pausa: el aviso casi nunca llega hasta volver.
- * - APK Android: el aviso de fondo lo manda NativeTripGps (hace falta el APK nuevo).
- *   Esta función cubre el caso en que el WebView sigue vivo.
+ * Usa lo que el APK publicado ya trae: @capacitor/local-notifications.
+ * En la web, Notification del navegador. El toque enfoca el viaje.
+ *
+ * Con Waze o Maps al frente, el WebView del APK actual se pausa y este JS
+ * deja de ver el GPS. Ahí el aviso no puede salir sin código nativo nuevo.
  */
 import {
     driverStageTargetFromWindow, arrivalStageKey, arrivalNoticeCopy, isNearStage
@@ -89,6 +89,7 @@ export async function maybeAnnounceDriverArrival(pos, trip) {
     const key = arrivalStageKey(trip, stage);
     if (!key || alreadyFired(key)) return false;
     const copy = arrivalNoticeCopy(stage);
+    if (!copy) return false;
     const shown = await showNotice(copy, key, trip.id);
     if (shown) remember(key);
     return shown;

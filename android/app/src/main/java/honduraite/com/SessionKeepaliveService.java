@@ -52,11 +52,8 @@ public class SessionKeepaliveService extends Service {
     }
 
     public static void notifyAppBackgrounded(Context context) {
-        // La burbuja solo mientras hay un viaje activo. En línea sin viaje, no.
-        if (!running || !bubbleEnabled || !tripMode) {
-            if (!tripMode) BubbleOverlayHelper.hide();
-            return;
-        }
+        if (!running || !bubbleEnabled) return;
+        BubbleOverlayHelper.resetDismissForNextBackground();
         BubbleOverlayHelper.show(context);
     }
 

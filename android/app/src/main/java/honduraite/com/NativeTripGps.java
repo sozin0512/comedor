@@ -8,18 +8,12 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Log;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.Intent;
-import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -76,12 +70,6 @@ public final class NativeTripGps {
     private volatile long lastTripCheckAt;
     private volatile Location lastLoc;
     private volatile boolean active;
-    private double targetLat = Double.NaN;
-    private double targetLng = Double.NaN;
-    private String stageKey = "";
-    private String stageLabel = "";
-    private static final String ARRIVAL_CHANNEL = "honduraite_arrival_v1";
-    private static final int ARRIVAL_NOTIFICATION_ID = 41002;
 
     private NativeTripGps(Context c) { ctx = c.getApplicationContext(); }
 
@@ -113,7 +101,6 @@ public final class NativeTripGps {
             Log.w(TAG, "config incompleta; no arranca");
             return;
         }
-        applyStage(c);
         boolean sameTrip = active && newTrip.equals(tripId);
         tripId = newTrip;
         if (sameTrip) return;
@@ -199,7 +186,6 @@ public final class NativeTripGps {
         lastLoc = loc;
         long now = System.currentTimeMillis();
         if (now - startedAt > MAX_RUN_MS) { stop(); return; }
-        if (!MainActivity.isAppInForeground()) maybeArrive(loc);
         if (MainActivity.isAppInForeground()) return; // en pantalla escribe el WebView
         if (now - lastWriteAt < WRITE_EVERY_MS) return;
         lastWriteAt = now;
@@ -207,83 +193,6 @@ public final class NativeTripGps {
         final boolean checkTrip = now - lastTripCheckAt > TRIP_CHECK_EVERY_MS;
         if (checkTrip) lastTripCheckAt = now;
         net.execute(() -> pushFix(l, checkTrip));
-    }
-
-    private void applyStage(JSONObject c) {
-        if (!c.has("targetLat") || !c.has("targetLng") || c.isNull("targetLat") || c.isNull("targetLng")) {
-            targetLat = Double.NaN;
-            targetLng = Double.NaN;
-        } else {
-            targetLat = c.optDouble("targetLat", Double.NaN);
-            targetLng = c.optDouble("targetLng", Double.NaN);
-        }
-        stageKey = c.optString("stageKey", "");
-        stageLabel = c.optString("stageLabel", "");
-    }
-
-    /** Una vez por etapa, a unos 100 m, con la app en segundo plano. */
-    private void maybeArrive(Location loc) {
-        if (stageKey == null || stageKey.isEmpty()) return;
-        if (Double.isNaN(targetLat) || Double.isNaN(targetLng)) return;
-        if (loc.hasAccuracy() && loc.getAccuracy() > 120f) return;
-        if (stageKey.equals(notifiedStage())) return;
-        float[] dist = new float[1];
-        Location.distanceBetween(loc.getLatitude(), loc.getLongitude(), targetLat, targetLng, dist);
-        if (dist[0] > 100f) return;
-        markNotified(stageKey);
-        postArrival();
-    }
-
-    private String notifiedStage() {
-        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("arrivedStage", "");
-    }
-
-    private void markNotified(String key) {
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("arrivedStage", key).apply();
-    }
-
-    private void postArrival() {
-        String body = "Llegaste al pasajero. Tocá para volver a HonduRaite";
-        if ("Hacia el negocio".equals(stageLabel)) body = "Llegaste al negocio. Tocá para volver a HonduRaite";
-        else if ("Hacia el destino".equals(stageLabel)) body = "Llegaste al destino. Tocá para volver a HonduRaite";
-        else if ("Hacia la parada".equals(stageLabel)) body = "Llegaste a la parada. Tocá para volver a HonduRaite";
-        try {
-            NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm == null) return;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                NotificationChannel ch = new NotificationChannel(
-                    ARRIVAL_CHANNEL, "Llegada del viaje", NotificationManager.IMPORTANCE_HIGH);
-                ch.setDescription("Aviso al llegar al punto, para volver a HonduRaite");
-                android.net.Uri sound = android.net.Uri.parse(
-                    "android.resource://" + ctx.getPackageName() + "/" + R.raw.hondu_iconic);
-                ch.setSound(sound, new android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
-                nm.createNotificationChannel(ch);
-            }
-            Intent launch = new Intent(ctx, MainActivity.class);
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_SINGLE_TOP
-                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            PendingIntent pi = PendingIntent.getActivity(
-                ctx, 77, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            android.net.Uri sound = android.net.Uri.parse(
-                "android.resource://" + ctx.getPackageName() + "/" + R.raw.hondu_iconic);
-            NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, ARRIVAL_CHANNEL)
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("Llegaste")
-                .setContentText(body)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-                .setAutoCancel(true)
-                .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setSound(sound)
-                .setContentIntent(pi);
-            nm.notify(ARRIVAL_NOTIFICATION_ID, b.build());
-        } catch (Exception e) {
-            Log.w(TAG, "arrival: " + e.getMessage());
-        }
     }
 
     // ---------------- REST ----------------

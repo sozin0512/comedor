@@ -40,7 +40,9 @@ const trip = { id: 't1', status: 'accepted', driverArrived: false, routeLegIndex
 const stage = { label: 'Hacia el pasajero', lat: 14.45, lng: -87.63 };
 eq('clave de etapa', arrivalStageKey(trip, stage), 't1|Hacia el pasajero|accepted|0|0');
 eq('otra etapa', arrivalStageKey({ ...trip, status: 'in_progress' }, { label: 'Hacia el destino' }) !== arrivalStageKey(trip, stage), true);
-eq('texto', arrivalNoticeCopy({ label: 'Hacia el negocio' }).body, 'Llegaste al negocio. Tocá para volver a HonduRaite');
+eq('aviso pin', arrivalNoticeCopy({ label: 'Hacia el pasajero' }).body, 'Ya llegaste al cliente, regresá a HonduRaite para ingresar el PIN');
+eq('aviso destino', arrivalNoticeCopy({ label: 'Hacia el destino' }).body, 'Llegaste al destino, regresá a HonduRaite para finalizar el viaje');
+eq('negocio no avisa', arrivalNoticeCopy({ label: 'Hacia el negocio' }), null);
 eq('distancia corta', haversineMeters(here, close) < 100, true);
 
 if (failed) {

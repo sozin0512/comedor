@@ -3,105 +3,57 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Volver a HonduRaite</title>
+    <title>Avisos de llegada</title>
     <style>
-        html, body { margin: 0; height: 100%; background: #0b1220; font-family: system-ui, sans-serif; color: #0f172a; }
-        .shot { display: none; height: 100%; position: relative; }
-        body[data-shot="notif"] .shot-notif,
-        body[data-shot="bubble"] .shot-bubble,
-        body[data-shot="permiso"] .shot-permiso { display: block; }
-        .map {
-            position: absolute; inset: 0;
-            background:
-                linear-gradient(180deg, rgba(255,255,255,.55), transparent 40%),
-                #d5e3c8 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><path d='M0 40H80M40 0V80' stroke='%23ffffff' stroke-width='8'/></svg>");
-            background-size: auto, 80px 80px;
-        }
-        .road { position: absolute; height: 8px; background: #33ccff; border-radius: 8px; transform-origin: left center; }
-        .status { position: absolute; top: 0; left: 0; right: 0; height: 28px; background: #111; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+        html, body { margin: 0; height: 100%; background: #d7e4cc; font-family: system-ui, sans-serif; }
+        .shot { display: none; min-height: 100%; position: relative; }
+        body[data-shot="pin"] .shot-pin,
+        body[data-shot="destino"] .shot-destino { display: block; }
+        .status { height: 28px; background: #111; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
         .notif {
-            position: absolute; left: 10px; right: 10px; top: 42px;
-            background: #f8fafc; border-radius: 22px; padding: 12px 14px;
-            box-shadow: 0 12px 30px rgba(0,0,0,.28);
+            margin: 14px 10px; background: #f8fafc; border-radius: 22px; padding: 12px 14px;
+            box-shadow: 0 12px 30px rgba(15,23,42,.22);
             display: flex; gap: 12px; align-items: flex-start;
         }
-        .notif img, .bubble {
-            width: 42px; height: 42px; border-radius: 50%; background: #fff;
-            border: 2px solid #2563eb; object-fit: cover;
-        }
-        .notif b { display: block; font-size: 15px; }
-        .notif p { margin: 2px 0 0; font-size: 14px; line-height: 1.3; }
+        .notif img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #2563eb; background: #fff; }
         .notif small { color: #64748b; font-weight: 700; }
-        .bubble-wrap {
-            position: absolute; right: 18px; top: 38%;
-            width: 74px; height: 74px;
-        }
-        .bubble {
-            width: 64px; height: 64px; display: block;
-            box-shadow: 0 10px 24px rgba(15,23,42,.35);
-            object-fit: cover;
-        }
-        .x {
-            position: absolute; right: 0; top: 0; width: 22px; height: 22px; border-radius: 50%;
-            background: #111827; color: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center;
-        }
-        .sheet {
-            position: absolute; left: 0; right: 0; bottom: 0; background: #fff;
-            border-radius: 28px 28px 0 0; padding: 22px 18px 28px;
-        }
-        .kicker { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #64748b; }
-        h2 { margin: 6px 0 0; font-size: 22px; }
-        .sheet p { font-size: 15px; line-height: 1.4; color: #334155; }
-        .row { display: flex; gap: 8px; }
-        .row button { flex: 1; min-height: 52px; border: 0; border-radius: 16px; font-weight: 800; font-size: 15px; }
-        .later { background: #e2e8f0; }
-        .go { background: #0f172a; color: #fff; flex: 1.3; }
+        .notif b { display: block; font-size: 15px; margin-top: 2px; }
+        .notif p { margin: 2px 0 0; font-size: 14px; line-height: 1.35; }
         body.android .nav {
-            position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: #111; color: #fff;
+            position: fixed; left: 0; right: 0; bottom: 0; height: 48px; background: #111; color: #fff;
             display: flex; align-items: center; justify-content: space-around; font-size: 12px;
         }
-        body.android .sheet { bottom: 48px; }
     </style>
 </head>
 <body>
-    <div class="shot shot-notif">
-        <div class="map"></div>
+    <div class="shot shot-pin">
         <div class="status"><span>9:41</span><span>Waze</span></div>
         <div class="notif">
             <img src="../icons/icon-192.png" alt="">
             <div>
                 <small>HonduRaite · ahora</small>
-                <b>Llegaste</b>
-                <p>Llegaste al pasajero. Tocá para volver a HonduRaite</p>
+                <b>Ya llegaste al cliente</b>
+                <p>Ya llegaste al cliente, regresá a HonduRaite para ingresar el PIN</p>
             </div>
         </div>
     </div>
-    <div class="shot shot-bubble">
-        <div class="map">
-            <div class="road" style="width:70%;top:46%;left:8%;transform:rotate(-18deg);background:#33ccff"></div>
-        </div>
+    <div class="shot shot-destino">
         <div class="status"><span>9:41</span><span>Google Maps</span></div>
-        <div class="bubble-wrap">
-            <img class="bubble" src="../icons/icon-192.png" alt="HonduRaite">
-            <div class="x">×</div>
-        </div>
-    </div>
-    <div class="shot shot-permiso">
-        <div class="map"></div>
-        <div class="sheet">
-            <p class="kicker">Volver desde Waze o Maps</p>
-            <h2>Burbuja de HonduRaite</h2>
-            <p>Para volver al viaje con un toque, Android tiene que dejar que HonduRaite se muestre sobre otras apps. Vas a ver un círculo con el ícono encima de Waze o Maps. Si no lo activás, igual te avisamos con una notificación al llegar.</p>
-            <div class="row">
-                <button class="later" type="button">Ahora no</button>
-                <button class="go" type="button">Activar burbuja</button>
+        <div class="notif">
+            <img src="../icons/icon-192.png" alt="">
+            <div>
+                <small>HonduRaite · ahora</small>
+                <b>Llegaste al destino</b>
+                <p>Llegaste al destino, regresá a HonduRaite para finalizar el viaje</p>
             </div>
         </div>
     </div>
+    <div class="nav"><span>◁</span><span>○</span><span>□</span></div>
     <script>
         const q = new URLSearchParams(location.search);
-        document.body.dataset.shot = q.get('shot') || 'notif';
+        document.body.dataset.shot = q.get('shot') || 'pin';
         if (q.get('nav') === 'android') document.body.classList.add('android');
+        else document.querySelector('.nav').style.display = 'none';
     </script>
 </body>
 </html>
