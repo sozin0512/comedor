@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es" class="hr-turnbyturn-off">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Ejemplo · Waze y Maps</title>
+    <link rel="stylesheet" href="../css/app.css">
+    <style>
+        html, body { margin: 0; height: 100%; background: #d7e3d4; font-family: system-ui, sans-serif; }
+        .shot { display: none; height: 100%; position: relative; }
+        body[data-shot="offer"] .shot-offer,
+        body[data-shot="pickup"] .shot-pickup,
+        body[data-shot="dest"] .shot-dest { display: block; }
+        .map {
+            position: absolute; inset: 0 0 0 0;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,.2), transparent 30%),
+                #c5d5b8;
+        }
+        .map svg { width: 100%; height: 62%; display: block; }
+        .card {
+            position: absolute; left: 10px; right: 10px; bottom: 12px;
+            background: #fff; border-radius: 22px; padding: 14px 14px 12px;
+            box-shadow: 0 12px 30px rgba(15,23,42,.18);
+        }
+        body.android-3btn .card { bottom: 64px; }
+        .preview-nav {
+            display: none; position: fixed; left: 0; right: 0; bottom: 0; height: 48px;
+            background: #111; color: #fff; z-index: 20;
+            align-items: center; justify-content: space-around; font-size: 11px;
+        }
+        body.android-3btn .preview-nav { display: flex; }
+        .price { margin: 0; font-size: 1.8rem; font-weight: 900; }
+        .meta { margin: 2px 0 8px; color: #64748b; font-size: 12px; font-weight: 800; }
+        .row { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; }
+        .dot { width: 10px; height: 10px; border-radius: 99px; background: #f59e0b; margin-top: 4px; }
+        .sq { width: 10px; height: 10px; background: #059669; margin-top: 4px; }
+        .addr { margin: 0; font-weight: 800; font-size: 14px; }
+        .sub { margin: 0; color: #64748b; font-size: 12px; font-weight: 700; }
+        .who { margin: 0 0 2px; font-weight: 900; }
+    </style>
+</head>
+<body>
+    <div class="preview-nav"><span>◁</span><span>○</span><span>□</span></div>
+
+    <div class="shot shot-offer">
+        <div class="map">
+            <svg viewBox="0 0 390 520" aria-label="Ruta de la oferta">
+                <polyline points="70,430 150,300 210,250" fill="none" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"></polyline>
+                <polyline points="210,250 280,180 330,90" fill="none" stroke="#059669" stroke-width="8" stroke-linecap="round"></polyline>
+                <circle cx="70" cy="430" r="8" fill="#0f172a"></circle>
+                <circle cx="210" cy="250" r="8" fill="#f59e0b"></circle>
+                <rect x="322" y="82" width="16" height="16" fill="#059669"></rect>
+            </svg>
+        </div>
+        <div class="card">
+            <p class="meta">EJEMPLO · oferta antes de aceptar</p>
+            <p class="price">L 126.00</p>
+            <p class="meta">Ganás L 113.40 · Efectivo</p>
+            <svg class="hr-ofr-sketch-svg" viewBox="0 0 320 108" aria-label="De ti al pasajero y el viaje">
+                <rect width="320" height="108" rx="14" fill="#eef3f8"></rect>
+                <polyline points="36,78 110,48" fill="none" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"></polyline>
+                <polyline points="110,48 250,28" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round"></polyline>
+            </svg>
+            <div class="row"><span class="dot"></span><div><p class="sub">1.2 km · 4 min de ti</p><p class="addr">Parque Central</p></div></div>
+            <div class="row"><span class="sq"></span><div><p class="sub">Viaje 6.6 km · 14 min</p><p class="addr">Hospital Santa Teresa</p></div></div>
+        </div>
+    </div>
+
+    <div class="shot shot-pickup">
+        <div class="map">
+            <svg viewBox="0 0 390 640" aria-label="Ruta hacia el pasajero">
+                <polyline points="80,520 160,400 230,280" fill="none" stroke="#059669" stroke-width="8" stroke-linecap="round"></polyline>
+                <circle cx="80" cy="520" r="9" fill="#0f172a"></circle>
+                <circle cx="230" cy="280" r="9" fill="#f59e0b"></circle>
+            </svg>
+        </div>
+        <div class="card">
+            <p class="who">Ana López</p>
+            <p class="driver-external-nav-stage">Hacia el pasajero</p>
+            <p class="addr" style="margin-bottom:8px;">Parque Central</p>
+            <div class="driver-external-nav">
+                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--waze">Waze</button>
+                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--gmaps">Google Maps</button>
+            </div>
+            <p class="sub">1.2 km · 4 min · la línea queda en el mapa, sin giros</p>
+        </div>
+    </div>
+
+    <div class="shot shot-dest">
+        <div class="map">
+            <svg viewBox="0 0 390 640" aria-label="Ruta hacia el destino">
+                <polyline points="60,500 140,360 240,200 320,110" fill="none" stroke="#059669" stroke-width="8" stroke-linecap="round"></polyline>
+                <circle cx="60" cy="500" r="9" fill="#0f172a"></circle>
+                <rect x="312" y="102" width="16" height="16" fill="#059669"></rect>
+            </svg>
+        </div>
+        <div class="card">
+            <p class="who">Ana López</p>
+            <p class="driver-external-nav-stage">Hacia el destino</p>
+            <p class="addr" style="margin-bottom:8px;">Hospital Santa Teresa</p>
+            <div class="driver-external-nav">
+                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--waze">Waze</button>
+                <button type="button" class="driver-ext-nav-btn driver-ext-nav-btn--gmaps">Google Maps</button>
+            </div>
+            <p class="sub">6.6 km · 14 min · sin banner de giros</p>
+        </div>
+    </div>
+    <script>
+        const q = new URLSearchParams(location.search);
+        document.body.dataset.shot = q.get('shot') || 'offer';
+        if (q.get('nav') === 'android') document.body.classList.add('android-3btn');
+    </script>
+</body>
+</html>

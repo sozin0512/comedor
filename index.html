@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.134">
+    <meta name="hr-app-version" content="2026.10.26.135">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -114,15 +114,15 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.134">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.135">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.134">
-    <link rel="stylesheet" id="hr-vehicle-wizard-css" href="css/vehicle-wizard.css?v=2026.10.26.134">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.135">
+    <link rel="stylesheet" id="hr-vehicle-wizard-css" href="css/vehicle-wizard.css?v=2026.10.26.135">
     <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.59">
     <link rel="stylesheet" href="css/pedido-doble.css?v=2026.10.26.59">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.134">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.134">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.135">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.135">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -170,7 +170,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.134"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.135"></script>
     <script defer src="js/busqueda-f.js?v=2026.10.26.59"></script>
     <script type="module" src="js/pedido-doble.js?v=2026.10.26.59"></script>
     <script type="module" src="js/user-city.js?v=2026.10.26.59"></script>
@@ -490,10 +490,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.134';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.135';
         (function () {
             try {
-                var build = '2026.10.26.134';
+                var build = '2026.10.26.135';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -3014,6 +3014,15 @@
                         <div id="driver-active-cta" class="driver-active-cta space-y-2">
                             <div id="driver-route-hero" class="hidden driver-route-hero driver-gmaps-route-wrap">
                                 <p id="driver-trip-accepted-kicker" class="driver-route-hero-kicker hidden"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
+                                <p id="driver-external-nav-stage" class="driver-external-nav-stage">Hacia el pasajero</p>
+                                <div class="driver-external-nav" data-external-nav>
+                                    <button type="button" data-trip-action="driver-waze" class="driver-ext-nav-btn driver-ext-nav-btn--waze trip-touch-btn" aria-label="Abrir en Waze">
+                                        <span class="pointer-events-none">Waze</span>
+                                    </button>
+                                    <button type="button" data-trip-action="driver-gmaps" class="driver-ext-nav-btn driver-ext-nav-btn--gmaps trip-touch-btn" aria-label="Abrir en Google Maps">
+                                        <span class="pointer-events-none">Google Maps</span>
+                                    </button>
+                                </div>
                                 <button type="button" data-trip-action="driver-nav-inapp" id="driver-target-address" class="driver-route-hero-btn driver-active-primary-btn driver-inapp-nav-btn trip-touch-btn w-full" aria-label="Navegar">
                                     <div class="flex items-center justify-center gap-3 pointer-events-none">
                                         <span class="driver-gmaps-route-icon driver-inapp-nav-icon" aria-hidden="true"><i class="fas fa-location-arrow"></i></span>
