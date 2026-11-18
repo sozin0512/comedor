@@ -212,7 +212,9 @@ self.addEventListener('notificationclick', (event) => {
         || tag.startsWith('staff-trip-')
         || tag.startsWith('passenger-counter-')
         || tag.startsWith('trip-price-boost-')
-        || tag.startsWith('push-test-');
+        || tag.startsWith('push-test-')
+        || type === 'driver_arrival'
+        || tag.startsWith('hr-arrival');
     const openChat = data.openChat === true || data.openChat === 'true';
     const openDriver = isTripOffer || data.openDriver === true || data.openDriver === 'true';
     const openPassenger = type === 'driver_bid'

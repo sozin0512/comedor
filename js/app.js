@@ -16,6 +16,7 @@ import {
     driverStageTargetFromWindow,
     openDriverStageInWaze, openDriverStageInGoogleMaps
 } from "./driver-external-nav.js?v=2026.10.26.135";
+import { maybeAnnounceDriverArrival } from "./driver-arrival-notice.js?v=2026.10.26.135";
 import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.135";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
@@ -4211,6 +4212,9 @@ if (document.readyState === 'loading') {
                         window.currentDriverHeading = heading;
                     }
                     if (trip.driverId === currentUser.uid) {
+                        if (hidden) {
+                            maybeAnnounceDriverArrival({ lat, lng, accuracy }, trip).catch(() => {});
+                        }
                         window._driverGpsOk = true;
                         window._driverGpsError = null;
                         try { window.notifyDriverGpsHealth?.(true); } catch (_) {}

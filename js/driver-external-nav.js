@@ -79,6 +79,48 @@ export function driverStageTarget(trip, helpers = {}) {
     return { lat, lng, label: 'Hacia el destino' };
 }
 
+export function haversineMeters(a, b) {
+    if (a?.lat == null || a?.lng == null || b?.lat == null || b?.lng == null) return Infinity;
+    const r = 6371000;
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLng = (b.lng - a.lng) * Math.PI / 180;
+    const lat1 = a.lat * Math.PI / 180;
+    const lat2 = b.lat * Math.PI / 180;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * r * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Una vez por etapa: cambia al pasar de recogida a parada o destino. */
+export function arrivalStageKey(trip, stage) {
+    if (!trip?.id || !stage) return '';
+    return [
+        trip.id,
+        stage.label || '',
+        trip.status || '',
+        trip.driverArrived ? 1 : 0,
+        Number(trip.routeLegIndex) || 0
+    ].join('|');
+}
+
+export function arrivalNoticeCopy(stage) {
+    const place = stage?.label === 'Hacia el negocio' ? 'al negocio'
+        : stage?.label === 'Hacia el destino' ? 'al destino'
+            : stage?.label === 'Hacia la parada' ? 'a la parada'
+                : 'al pasajero';
+    return {
+        title: 'Llegaste',
+        body: `Llegaste ${place}. Tocá para volver a HonduRaite`
+    };
+}
+
+/** ~100 m. Si el GPS está muy borroso no avisamos. */
+export function isNearStage(pos, stage, accuracy) {
+    if (!pos || !stage) return false;
+    const acc = Number(accuracy);
+    if (Number.isFinite(acc) && acc > 120) return false;
+    return haversineMeters(pos, stage) <= 100;
+}
+
 export function driverStageTargetFromWindow(trip) {
     const leg = typeof window !== 'undefined' ? window.getTripCurrentLegNavTarget?.(trip) : null;
     const final = typeof window !== 'undefined' ? window.isTripAtFinalRouteLeg?.(trip) : true;
@@ -99,6 +141,51 @@ export function externalNavButtonsHtml() {
     </div>`;
 }
 
+const BUBBLE_PROMPT_KEY = 'hr_bubble_prompt_v1';
+
+/** La primera vez que abre Waze o Maps, pide la burbuja. Si dice que no, igual abre el mapa. */
+async function ensureReturnBubblePermission() {
+    const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+    if (!cap?.isNativePlatform?.() || cap.getPlatform?.() !== 'android') return 'skip';
+    let granted = false;
+    let plugin = null;
+    try {
+        const { registerPlugin } = await import('./vendor/capacitor-core.js');
+        plugin = registerPlugin('SessionKeepalive');
+        granted = !!(await plugin.hasOverlayPermission())?.granted;
+    } catch (_) {
+        return 'skip';
+    }
+    if (granted) return 'skip';
+    try {
+        if (localStorage.getItem(BUBBLE_PROMPT_KEY) === '1') return 'skip';
+    } catch (_) {}
+    const choice = await new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.dataset.bubblePrompt = '1';
+        modal.style.cssText = 'position:fixed;inset:0;z-index:46000;background:rgba(15,23,42,.72);display:flex;align-items:flex-end;justify-content:center;padding:16px;';
+        modal.innerHTML = `
+            <div style="width:100%;max-width:24rem;background:#fff;border-radius:1.5rem;padding:1.25rem 1.15rem 1.1rem;box-shadow:0 18px 40px rgba(0,0,0,.28)">
+                <p style="margin:0;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#64748b">Volver desde Waze o Maps</p>
+                <h2 style="margin:.35rem 0 0;font-size:1.15rem;font-weight:900;color:#0f172a">Burbuja de HonduRaite</h2>
+                <p style="margin:.55rem 0 0;font-size:.92rem;line-height:1.35;color:#334155">Para volver al viaje con un toque, Android tiene que dejar que HonduRaite se muestre sobre otras apps. Vas a ver un círculo con el ícono encima de Waze o Maps. Si no lo activás, igual te avisamos con una notificación al llegar.</p>
+                <div style="display:flex;gap:.5rem;margin-top:1rem">
+                    <button type="button" data-act="later" style="flex:1;min-height:3rem;border:0;border-radius:1rem;background:#e2e8f0;font-weight:800;color:#0f172a">Ahora no</button>
+                    <button type="button" data-act="allow" style="flex:1.2;min-height:3rem;border:0;border-radius:1rem;background:#0f172a;font-weight:900;color:#fff">Activar burbuja</button>
+                </div>
+            </div>`;
+        modal.querySelector('[data-act="later"]').onclick = () => { modal.remove(); resolve('later'); };
+        modal.querySelector('[data-act="allow"]').onclick = () => { modal.remove(); resolve('allow'); };
+        document.body.appendChild(modal);
+    });
+    try { localStorage.setItem(BUBBLE_PROMPT_KEY, '1'); } catch (_) {}
+    if (choice === 'allow') {
+        try { await plugin.requestOverlayPermission(); } catch (_) {}
+        return 'settings';
+    }
+    return 'skip';
+}
+
 async function armBackgroundGps(trip) {
     try { await window.syncLiveTripKeepalive?.(trip); } catch (_) {}
     try {
@@ -113,6 +200,7 @@ export async function openDriverStageInWaze(trip) {
         window.showToast?.('Falta la ubicación de esta etapa.', 'warning');
         return false;
     }
+    if (await ensureReturnBubblePermission() === 'settings') return false;
     await armBackgroundGps(trip);
     const native = window.Capacitor?.isNativePlatform?.() === true;
     if (native) {
@@ -132,6 +220,7 @@ export async function openDriverStageInGoogleMaps(trip) {
         window.showToast?.('Falta la ubicación de esta etapa.', 'warning');
         return false;
     }
+    if (await ensureReturnBubblePermission() === 'settings') return false;
     await armBackgroundGps(trip);
     const url = googleMapsNavUrl(target.lat, target.lng);
     if (typeof window.openGoogleMapsDirectionsUrl === 'function') {

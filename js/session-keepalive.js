@@ -176,6 +176,14 @@ async function buildNativeTripGpsConfig(trip) {
         const refreshToken = user.refreshToken || '';
         if (!idToken && !refreshToken) return null;
         maybeExplainBackgroundGps(trip.id).catch(() => {});
+        let stage = null;
+        try {
+            const { driverStageTargetFromWindow, arrivalStageKey } = await import('./driver-external-nav.js');
+            stage = driverStageTargetFromWindow(trip);
+            var stageKey = arrivalStageKey(trip, stage);
+        } catch (_) {
+            stage = null;
+        }
         return {
             apiKey: APP_CONFIG.firebase.apiKey,
             projectId: APP_CONFIG.firebase.projectId,
@@ -184,6 +192,10 @@ async function buildNativeTripGpsConfig(trip) {
             tripId: String(trip.id),
             idToken: idToken || '',
             refreshToken,
+            targetLat: stage?.lat ?? null,
+            targetLng: stage?.lng ?? null,
+            stageKey: stageKey || '',
+            stageLabel: stage?.label || '',
         };
     } catch (_) {
         return null;
