@@ -6148,15 +6148,18 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 return false;
             }
 
-            if (opts.silent !== true) {
+            const turnByTurn = window.hrDriverTurnByTurnEnabled?.() === true;
+            if (opts.silent !== true && turnByTurn) {
                 window.showToast?.('Iniciando navegación en el mapa…', 'info');
             }
             await window.ensureDriverPosition?.();
 
             try {
                 window.driverNavMode = true;
-                window.driverVoiceNavEnabled = window.driverVoiceNavEnabled !== false;
-                document.body.classList.add('driver-nav-mode', 'is-navigating');
+                if (turnByTurn) window.driverVoiceNavEnabled = window.driverVoiceNavEnabled !== false;
+                document.body.classList.add('is-navigating');
+                if (turnByTurn) document.body.classList.add('driver-nav-mode');
+                else document.body.classList.add('hr-static-route');
                 window.autoCenter = true;
                 // Tráfico: no auto-activar en APK (capa extra que traba el mapa)
                 if (window.trafficLayer && window.gMap && !window.hrUseLiteMaps?.()) {
@@ -6166,13 +6169,13 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 }
                 // Entra nav: auto-min una vez; si el usuario maximizó, se respeta
                 window.enterDriverNavMode?.();
-                if (!window._driverNavPanelAutoMinDone && !window._driverNavUserKeptOpen) {
+                if (turnByTurn && !window._driverNavPanelAutoMinDone && !window._driverNavUserKeptOpen) {
                     window._driverNavPanelAutoMinDone = true;
                     window.minimizeDriverPanelForNav?.();
                 }
-                window.startDriverCompassTracking?.().catch?.(() => {});
+                if (turnByTurn) window.startDriverCompassTracking?.().catch?.(() => {});
                 window.syncDriverPanelNavVisibility?.();
-                if (window.currentDriverPos) {
+                if (turnByTurn && window.currentDriverPos) {
                     window.applyDriverNavCamera?.(
                         window.currentDriverPos,
                         window.currentDriverHeading,
@@ -6220,7 +6223,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             window.syncNavVoiceToggleUi?.();
             window.syncNavVoicePickerUi?.();
 
-            if (opts.silent !== true) {
+            if (opts.silent !== true && turnByTurn) {
                 window.showToast?.('Navegación activa. Voz + mapa · Google Maps sigue disponible abajo.', 'success');
             }
             return true;
@@ -6613,6 +6616,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         };
 
         window.speakNavMessage = (text, { interrupt = true } = {}) => {
+            if (window.hrDriverTurnByTurnEnabled?.() !== true) return;
             if (!('speechSynthesis' in window) || window.driverVoiceNavEnabled === false) return;
             const clean = String(text || '').replace(/\s+/g, ' ').trim();
             if (!clean) return;
@@ -8846,6 +8850,24 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
          * debe seguir visible — si no, “desaparece” el modo navegación.
          */
         window.syncDriverPanelNavVisibility = () => {
+            if (window.hrDriverTurnByTurnEnabled?.() !== true) {
+                document.getElementById('driver-panel-nav')?.classList.add('hidden');
+                document.getElementById('driver-panel-nav')?.style.removeProperty('display');
+                const top = document.getElementById('nav-hud-top');
+                const bottom = document.getElementById('nav-hud-bottom');
+                if (top) {
+                    top.classList.add('hidden');
+                    top.classList.remove('is-gmaps-visible');
+                    top.style.setProperty('display', 'none', 'important');
+                }
+                if (bottom) {
+                    bottom.classList.add('hidden');
+                    bottom.style.setProperty('display', 'none', 'important');
+                }
+                document.getElementById('driver-nav-eta-chip')?.classList.add('hidden');
+                document.body.classList.remove('gmaps-driver-nav');
+                return;
+            }
             const isDriver = document.body.classList.contains('driver-mode')
                 || window.userProfile?.role === 'driver';
             const destPhase = document.body.classList.contains('driver-trip-dest-phase')
@@ -8910,6 +8932,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         };
 
         window.updateDriverNavTurnCard = (route, pos) => {
+            if (window.hrDriverTurnByTurnEnabled?.() !== true) return;
             const liveNav = window.isDriverNavigating?.()
                 || document.body.classList.contains('driver-nav-mode')
                 || document.body.classList.contains('is-navigating')

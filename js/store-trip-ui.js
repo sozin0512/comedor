@@ -475,6 +475,10 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null, opts = {}) {
         <div class="hr-moto-stage" data-driver-stage-actions="${esc(stageMeta.stage)}">
             <p class="hr-moto-next">${esc(stageMeta.headerTitle)}</p>
             <p class="hr-moto-dest">${esc(destLine)}</p>
+            <div class="driver-external-nav" data-external-nav>
+                <button type="button" data-trip-action="driver-waze" class="driver-ext-nav-btn driver-ext-nav-btn--waze">Waze</button>
+                <button type="button" data-trip-action="driver-gmaps" class="driver-ext-nav-btn driver-ext-nav-btn--gmaps">Google Maps</button>
+            </div>
             ${stageMeta.stage === "at_store" ? arrivalCustomerPhoneHtml(t, opts.viewerId) : ""}
             ${driverStagePrimaryHtml(t, stageMeta)}
         </div>

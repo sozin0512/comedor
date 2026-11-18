@@ -4,9 +4,15 @@
  */
 export const APP_CONFIG = {
     /** Sube este número cada vez que publicas cambios (y el mismo valor en version.json). */
-    appVersion: '2026.10.26.134',
+    appVersion: '2026.10.26.135',
     /** Push nativo Android (auto: google-services.json + paquete APK) */
     androidFcmEnabled: true,
+    /**
+     * Giro a giro dentro de la app (banner del próximo giro, voz y recálculo).
+     * false lo oculta; el código queda. El conductor usa Waze o Google Maps.
+     * Pasalo a true para volver a encenderlo.
+     */
+    driverTurnByTurnEnabled: false,
     firebase: {
         apiKey: "AIzaSyCJfh_J-5gx25yl0OWV5a7-8tLfbI0cjRQ",
         authDomain: "comedor-86278.firebaseapp.com",

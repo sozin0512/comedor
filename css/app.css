@@ -28637,6 +28637,58 @@ body.trip-autocomplete-open .hr-search-done-btn {
 }
 .hr-search-done-btn[hidden] { display: none !important; }
 
+/* Giro a giro apagado: el código sigue, pero no se ve el banner ni la voz. */
+html.hr-turnbyturn-off #nav-hud-top,
+html.hr-turnbyturn-off #nav-hud-bottom,
+html.hr-turnbyturn-off #driver-nav-eta-chip,
+html.hr-turnbyturn-off #driver-panel-nav,
+html.hr-turnbyturn-off .driver-inapp-nav-btn,
+html.hr-turnbyturn-off #driver-open-gmaps,
+body.hr-turnbyturn-off #nav-hud-top,
+body.hr-turnbyturn-off #nav-hud-bottom,
+body.hr-turnbyturn-off #driver-nav-eta-chip,
+body.hr-turnbyturn-off #driver-panel-nav,
+body.hr-turnbyturn-off .driver-inapp-nav-btn,
+body.hr-turnbyturn-off #driver-open-gmaps {
+    display: none !important;
+}
+.driver-external-nav-stage {
+    margin: 0 0 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+.driver-external-nav {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    margin: 0 0 0.45rem;
+}
+.driver-ext-nav-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 3.15rem;
+    border: 0;
+    border-radius: 1rem;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+}
+.driver-ext-nav-btn--waze { background: #33ccff; color: #082f49; }
+.driver-ext-nav-btn--gmaps { background: #1a73e8; }
+.driver-ext-nav-btn:active { transform: scale(0.98); }
+body.android-3btn .driver-external-nav {
+    margin-bottom: calc(8px + max(var(--safe-bottom, 0px), var(--android-nav-inset, 48px), 48px));
+}
+body.android-gesture .driver-external-nav,
+body.capacitor-ios .driver-external-nav {
+    margin-bottom: calc(8px + max(20px, env(safe-area-inset-bottom, 0px)));
+}
+
 /* Opciones de un producto: panel a pantalla completa, misma tarjeta blanca que «Elige el tipo». */
 #menu-options-root {
     position: fixed;

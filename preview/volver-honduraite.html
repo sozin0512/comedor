@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Avisos de llegada</title>
+    <style>
+        html, body { margin: 0; height: 100%; background: #d7e4cc; font-family: system-ui, sans-serif; }
+        .shot { display: none; min-height: 100%; position: relative; }
+        body[data-shot="pin"] .shot-pin,
+        body[data-shot="destino"] .shot-destino { display: block; }
+        .status { height: 28px; background: #111; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+        .notif {
+            margin: 14px 10px; background: #f8fafc; border-radius: 22px; padding: 12px 14px;
+            box-shadow: 0 12px 30px rgba(15,23,42,.22);
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .notif img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #2563eb; background: #fff; }
+        .notif small { color: #64748b; font-weight: 700; }
+        .notif b { display: block; font-size: 15px; margin-top: 2px; }
+        .notif p { margin: 2px 0 0; font-size: 14px; line-height: 1.35; }
+        body.android .nav {
+            position: fixed; left: 0; right: 0; bottom: 0; height: 48px; background: #111; color: #fff;
+            display: flex; align-items: center; justify-content: space-around; font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="shot shot-pin">
+        <div class="status"><span>9:41</span><span>Waze</span></div>
+        <div class="notif">
+            <img src="../icons/icon-192.png" alt="">
+            <div>
+                <small>HonduRaite · ahora</small>
+                <b>Ya llegaste al cliente</b>
+                <p>Ya llegaste al cliente, regresá a HonduRaite para ingresar el PIN</p>
+            </div>
+        </div>
+    </div>
+    <div class="shot shot-destino">
+        <div class="status"><span>9:41</span><span>Google Maps</span></div>
+        <div class="notif">
+            <img src="../icons/icon-192.png" alt="">
+            <div>
+                <small>HonduRaite · ahora</small>
+                <b>Llegaste al destino</b>
+                <p>Llegaste al destino, regresá a HonduRaite para finalizar el viaje</p>
+            </div>
+        </div>
+    </div>
+    <div class="nav"><span>◁</span><span>○</span><span>□</span></div>
+    <script>
+        const q = new URLSearchParams(location.search);
+        document.body.dataset.shot = q.get('shot') || 'pin';
+        if (q.get('nav') === 'android') document.body.classList.add('android');
+        else document.querySelector('.nav').style.display = 'none';
+    </script>
+</body>
+</html>
