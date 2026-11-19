@@ -447,10 +447,9 @@ export function initAppUpdateCheck() {
     window.getBuildVersion = getBuildVersion;
     window.getMessagingSwUrl = getMessagingSwUrl;
 
-    // APK Capacitor carga el sitio vivo (server.url): también hay que recargar el WebView.
-    if (!isCapacitorNative()) {
-        bindServiceWorkerUpdateFlow();
-    }
+    // Web y APK (WebView remoto): pedir el SW nuevo para que la caché del cascarón
+    // no se quede un día con archivos viejos. La recarga solo corre si el usuario actualiza.
+    bindServiceWorkerUpdateFlow();
 
     // iPhone / PWA: varios pases tempranos (Safari a veces tarda o cachea el primer fetch)
     const earlyMs = isCapacitorNative()
